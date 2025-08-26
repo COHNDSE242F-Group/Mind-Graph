@@ -1,0 +1,61 @@
+.app-root {
+  -fx-font-family: "Segoe UI", system-ui, sans-serif;
+  -fx-background-color: linear-gradient(to bottom, #f7f7f9, #f1f3f6);
+}
+
+.topbar {
+  -fx-background-color: #ffffff;
+  -fx-padding: 8 10;
+  -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.08), 12, 0.1, 0, 2);
+}
+
+.statusbar {
+  -fx-background-color: #ffffff;
+  -fx-padding: 8 12;
+  -fx-border-color: #e6e8eb;
+  -fx-border-width: 1 0 0 0;
+}
+
+.button, .toggle-button {
+  -fx-background-radius: 10;
+  -fx-background-color: #eef2f7;
+  -fx-text-fill: #222;
+  -fx-padding: 6 14;
+}
+.button:hover, .toggle-button:hover {
+  -fx-background-color: #e6ebf2;
+}
+.toggle-button:selected {
+  -fx-background-color: #2563eb;
+  -fx-text-fill: white;
+}
+
+.fmt-btn {
+  -fx-font-weight: bold;
+}
+.fmt-btn[text="I"] { -fx-font-style: italic; }
+.fmt-btn[text="U"] { -fx-underline: true; }
+
+.unsaved-dot {
+  -fx-text-fill: #ef4444;
+  -fx-font-weight: 600;
+}
+
+/* RichTextFX area skin */
+.styled-text-area {
+  -fx-background-color: white;
+  -fx-padding: 18;
+  -fx-background-radius: 14;
+  -fx-border-color: #e6e8eb;
+  -fx-border-radius: 14;
+  -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 18, 0.2, 0, 3);
+}
+
+.styled-text-area .paragraph-box:has-caret {
+  -fx-background-color: rgba(37,99,235,0.05);
+}
+
+/* Inline styles for formatting */
+.bold { -fx-font-weight: bold; }
+.italic { -fx-font-style: italic; }
+.underline { -fx-underline: true; }

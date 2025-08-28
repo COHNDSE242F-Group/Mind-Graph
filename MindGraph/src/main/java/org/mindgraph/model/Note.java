@@ -1,6 +1,8 @@
 package org.mindgraph.model;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 public class Note {
     private String id;
@@ -10,6 +12,9 @@ public class Note {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
+    // New field for keywords
+    private List<String> keywords;
+
     // Constructors
     public Note() {
         this.id = java.util.UUID.randomUUID().toString();
@@ -18,6 +23,7 @@ public class Note {
         this.difficulty = 1;
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
+        this.keywords = new ArrayList<>();
     }
 
     public Note(String title, String contentMarkup) {
@@ -27,13 +33,14 @@ public class Note {
     }
 
     public Note(String id, String title, String contentMarkup, int difficulty,
-                LocalDateTime createdAt, LocalDateTime updatedAt) {
+                LocalDateTime createdAt, LocalDateTime updatedAt, List<String> keywords) {
         this.id = id;
         this.title = title;
         this.contentMarkup = contentMarkup;
         this.difficulty = difficulty;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
+        this.keywords = keywords != null ? keywords : new ArrayList<>();
     }
 
     // Getters & Setters
@@ -54,4 +61,20 @@ public class Note {
 
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    public List<String> getKeywords() { return keywords; }
+    public void setKeywords(List<String> keywords) { this.keywords = keywords; }
+
+    // --- Helper methods for keywords ---
+    public void addKeyword(String keyword) {
+        if(!keywords.contains(keyword)) keywords.add(keyword);
+    }
+
+    public void removeKeyword(String keyword) {
+        keywords.remove(keyword);
+    }
+
+    public boolean hasKeyword(String keyword) {
+        return keywords.contains(keyword);
+    }
 }

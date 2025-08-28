@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/21"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="org.mindgraph.controller.RevisionController"
+            style="-fx-padding: 20;">
+
+    <!-- Top: Title Label -->
+    <top>
+        <Label fx:id="lblRevisionTitle"
+               text="Revision Mode"
+               style="-fx-font-size: 20px; -fx-font-weight: bold;"
+               BorderPane.alignment="CENTER"/>
+    </top>
+
+    <!-- Center: Note display area -->
+    <center>
+        <StackPane fx:id="revisionHost"
+                   prefHeight="400"
+                   prefWidth="600"
+                   BorderPane.alignment="CENTER">
+
+        </StackPane>
+    </center>
+
+    <!-- Bottom: Control buttons -->
+    <bottom>
+        <VBox spacing="10" alignment="CENTER" padding="10" BorderPane.alignment="CENTER">
+
+            <Separator/>
+
+            <!-- Control buttons -->
+            <HBox spacing="10" alignment="CENTER">
+                <Button text="Next Note"
+                        onAction="#showNextNote"
+                        style="-fx-font-size: 14px;"/>
+
+              
+            </HBox>
+        </VBox>
+    </bottom>
+</BorderPane>

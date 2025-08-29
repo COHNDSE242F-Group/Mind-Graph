@@ -12,31 +12,46 @@
     <top>
         <VBox>
             <!-- Note title and settings -->
-            <HBox spacing="10" alignment="CENTER_LEFT" styleClass="note-header">
+            <HBox spacing="15" alignment="CENTER_LEFT" styleClass="note-header">
                 <padding>
                     <Insets top="8" right="8" bottom="8" left="8"/>
                 </padding>
 
+                <!-- Note Info -->
                 <Label text="Title:"/>
                 <TextField fx:id="txtTitle" promptText="Enter note title..." HBox.hgrow="ALWAYS"/>
 
                 <Label text="Difficulty:"/>
-                <ComboBox fx:id="cmbDifficulty" prefWidth="80"/>
+                <ComboBox fx:id="cmbDifficulty" prefWidth="100"/>
 
+                <Label text="Mode:"/>
+                <ComboBox fx:id="cmbMode" prefWidth="140"/>
+
+                <!-- Spacer -->
+                <Separator orientation="VERTICAL"/>
+
+                <!-- Appearance -->
                 <Label text="Font:"/>
                 <ComboBox fx:id="cmbFontFamily" prefWidth="150"/>
 
-                <Label text="Font Size:"/>
+                <Label text="Size:"/>
                 <Spinner fx:id="spinnerFont" prefWidth="80"/>
 
+                <!-- Spacer -->
+                <Pane HBox.hgrow="ALWAYS"/>
+
+                <!-- Actions -->
                 <Button fx:id="btnAddImage" text="Add Image" onAction="#onAddImage"/>
             </HBox>
+
 
             <!-- Main toolbar -->
             <ToolBar styleClass="topbar">
                 <Button fx:id="btnNew" text="New" onAction="#onNew"/>
                 <Button fx:id="btnOpen" text="Open" onAction="#onOpen"/>
                 <Button fx:id="btnSave" text="Save" onAction="#onSave"/>
+                <Button fx:id="btnPrev" text="&lt; Prev" onAction="#onPrev"/>
+                <Button fx:id="btnNext" text="Next &gt;" onAction="#onNext"/>
 
                 <Separator orientation="VERTICAL"/>
 
@@ -84,3 +99,4 @@
         </HBox>
     </bottom>
 </BorderPane>
+

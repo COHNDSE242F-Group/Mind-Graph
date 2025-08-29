@@ -1,6 +1,7 @@
 package org.mindgraph.controller;
 
 import javafx.collections.FXCollections;
+import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
@@ -31,6 +32,7 @@ public class NotepadController {
     // Toolbar additional fields
     @FXML private TextField txtTitle;
     @FXML private ComboBox<String> cmbDifficulty;
+    @FXML private ComboBox<String> cmbMode;
     @FXML private Button btnAddImage, btnFind, btnRep;
 
     // --- Editor ---
@@ -56,6 +58,14 @@ public class NotepadController {
                 "System","Arial","Verdana","Tahoma","Times New Roman","Courier New","Georgia"
         ));
         cmbFontFamily.getSelectionModel().select("System");
+
+        cmbMode.setItems(FXCollections.observableArrayList(
+                "Concept Map",        //Graph
+                "Backtrack Mode",         //tack
+                "Revision",               //Queue
+                "Session History"         //Linked List
+        ));
+        cmbMode.getSelectionModel().selectFirst(); // default selection
 
         // Font size
         spinnerFont.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(8,72,14));
@@ -87,6 +97,9 @@ public class NotepadController {
         txtTitle.setText("Untitled");
         updateCounts();
         updateCaret();
+
+
+
     }
 
     // --- File Operations ---
@@ -105,19 +118,10 @@ public class NotepadController {
         fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("RichText Note","*.rnote"));
         File f = fc.showOpenDialog(editor.getScene().getWindow());
         if(f != null){
-            try {
-                Note note = new Note();
-                NoteXmlUtil.load(note, editor, f);
-                currentFile = f;
-                lblTitle.setText(f.getName());
-                txtTitle.setText(f.getName());
-                clearDirty();
-            } catch(Exception ex){
-                showError("Open failed", ex.getMessage());
-                ex.printStackTrace();
-            }
+            loadFile(f);   // call helper
         }
     }
+
 
     @FXML public void onSave() {
         try {
@@ -139,6 +143,21 @@ public class NotepadController {
             ex.printStackTrace();
         }
     }
+
+    private void loadFile(File f) {
+        try {
+            Note note = new Note();
+            NoteXmlUtil.load(note, editor, f);
+            currentFile = f;
+            lblTitle.setText(f.getName());
+            txtTitle.setText(f.getName());
+            clearDirty();
+        } catch (Exception ex) {
+            showError("Load failed", ex.getMessage());
+            ex.printStackTrace();
+        }
+    }
+
 
     // --- Styling helpers ---
     private void toggleStyle(String css) {
@@ -239,4 +258,19 @@ public class NotepadController {
     private String toRgbString(Color c){
         return "rgb(" + (int)(c.getRed()*255) + "," + (int)(c.getGreen()*255) + "," + (int)(c.getBlue()*255) + ")";
     }
+
+    public void onPrev(ActionEvent actionEvent) {
+        if(currentFile != null){
+            loadFile(currentFile);  // later replace with stack.pop()
+        }
+    }
+
+
+    public void onNext(ActionEvent actionEvent) {
+        if(currentFile!=null){
+            loadFile(currentFile);  // later replace with stack.peek()/push
+        }
+    }
+
 }
+

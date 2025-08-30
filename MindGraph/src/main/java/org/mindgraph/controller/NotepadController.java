@@ -1,23 +1,29 @@
 package org.mindgraph.controller;
 
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.input.KeyCombination;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
 import org.fxmisc.richtext.InlineCssTextArea;
+import org.mindgraph.db.NoteDao;
 import org.mindgraph.model.Note;
+import org.mindgraph.util.KeywordExtractor;
 import org.mindgraph.util.NoteXmlUtil;
 
 import java.io.File;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 public class NotepadController {
 
-    // --- FXML Fields ---
     @FXML private StackPane editorHost;
     @FXML private ToggleButton toggleEdit;
     @FXML private Button btnNew, btnOpen, btnSave;
@@ -27,44 +33,43 @@ public class NotepadController {
     @FXML private ComboBox<String> cmbFontFamily;
     @FXML private Spinner<Integer> spinnerFont;
     @FXML private Label lblSaved, lblTitle, lblCursor, lblWords, lblChars;
-
-    // Toolbar additional fields
     @FXML private TextField txtTitle;
     @FXML private ComboBox<String> cmbDifficulty;
-    @FXML private Button btnAddImage, btnFind, btnRep;
 
-    // --- Editor ---
     private InlineCssTextArea editor;
     private boolean dirty = false;
     private File currentFile = null;
+    private Note currentNote = new Note();
 
-    // --- Styles ---
     private static final String BOLD = "-fx-font-weight:bold;";
     private static final String ITALIC = "-fx-font-style:italic;";
     private static final String UNDERLINE = "-fx-underline:true;";
 
+    private final NoteDao noteDao = new NoteDao("mindgraph.db");
+
+    private record KeywordRange(int start, int end, String keyword) {}
+    private final List<KeywordRange> keywordRanges = new ArrayList<>();
+
     @FXML
     public void initialize() {
-        // Initialize editor
         editor = new InlineCssTextArea();
         editor.setWrapText(true);
         editorHost.getChildren().add(editor);
         editor.setEditable(true);
 
-        // Font families
         cmbFontFamily.setItems(FXCollections.observableArrayList(
                 "System","Arial","Verdana","Tahoma","Times New Roman","Courier New","Georgia"
         ));
         cmbFontFamily.getSelectionModel().select("System");
 
-        // Font size
+        cmbDifficulty.setItems(FXCollections.observableArrayList("1","2","3","4","5"));
+        cmbDifficulty.getSelectionModel().select("1");
+
         spinnerFont.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(8,72,14));
 
-        // Track changes
-        editor.textProperty().addListener((obs, oldV, newV) -> markDirty());
-        editor.caretPositionProperty().addListener((obs, oldV, newV) -> updateCaret());
+        editor.textProperty().addListener((obs, ov, nv) -> markDirty());
+        editor.caretPositionProperty().addListener((obs, ov, nv) -> updateCaret());
 
-        // Keyboard shortcuts
         editor.sceneProperty().addListener((obs, old, scene) -> {
             if(scene == null) return;
             scene.getAccelerators().put(new KeyCodeCombination(KeyCode.S, KeyCombination.CONTROL_DOWN), this::onSave);
@@ -72,9 +77,8 @@ public class NotepadController {
             scene.getAccelerators().put(new KeyCodeCombination(KeyCode.O, KeyCombination.CONTROL_DOWN), this::onOpen);
         });
 
-        // Toolbar listeners
-        spinnerFont.valueProperty().addListener((obs, oldV, newV) -> applyFontSize(newV));
-        cmbFontFamily.valueProperty().addListener((obs, oldV, newV) -> applyFontFamily(newV));
+        spinnerFont.valueProperty().addListener((obs, ov, nv) -> applyFontSize(nv));
+        cmbFontFamily.valueProperty().addListener((obs, ov, nv) -> applyFontFamily(nv));
         if(cpTextColor != null) cpTextColor.setOnAction(e -> applyTextColor(cpTextColor.getValue()));
         if(cpHighlight != null) cpHighlight.setOnAction(e -> applyHighlightColor(cpHighlight.getValue()));
 
@@ -82,35 +86,62 @@ public class NotepadController {
         btnItalic.setOnAction(e -> toggleStyle(ITALIC));
         btnUnderline.setOnAction(e -> toggleStyle(UNDERLINE));
 
-        // Default values
-        lblTitle.setText("Untitled");
-        txtTitle.setText("Untitled");
+        lblTitle.setText(currentNote.getTitle());
+        txtTitle.setText(currentNote.getTitle());
         updateCounts();
         updateCaret();
+
+        // Handle clicks on keyword ranges
+        editor.setOnMouseClicked(event -> {
+            int pos = editor.getCaretPosition();
+            for(KeywordRange kr : keywordRanges){
+                if(pos >= kr.start && pos <= kr.end){
+                    showKeywordAlert(kr.keyword);
+                    break;
+                }
+            }
+        });
     }
 
-    // --- File Operations ---
-    @FXML public void onNew() {
+    private void showKeywordAlert(String keyword){
+        Alert alert = new Alert(Alert.AlertType.INFORMATION,
+                "NoteID: " + currentNote.getId() + "\nKeyword: " + keyword,
+                ButtonType.OK);
+        alert.setHeaderText("Keyword Clicked");
+        alert.showAndWait();
+    }
+
+    @FXML
+    public void onNew() {
         if(!confirmLoseChanges()) return;
         editor.clear();
         currentFile = null;
+        currentNote = new Note();
+        keywordRanges.clear();
         lblTitle.setText("Untitled");
         txtTitle.setText("Untitled");
+        cmbDifficulty.getSelectionModel().select("1");
         clearDirty();
     }
 
-    @FXML public void onOpen() {
+    @FXML
+    public void onOpen() {
         if(!confirmLoseChanges()) return;
         FileChooser fc = new FileChooser();
-        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("RichText Note","*.rnote"));
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("MindGraph XML","*.xml"));
         File f = fc.showOpenDialog(editor.getScene().getWindow());
         if(f != null){
             try {
-                Note note = new Note();
-                NoteXmlUtil.load(note, editor, f);
+                Note n = noteDao.findByFilePath(f.getAbsolutePath());
+                if (n == null) n = new Note();
+                NoteXmlUtil.load(n, editor, f);
+                currentNote = n;
                 currentFile = f;
-                lblTitle.setText(f.getName());
-                txtTitle.setText(f.getName());
+                lblTitle.setText(n.getTitle());
+                txtTitle.setText(n.getTitle());
+                cmbDifficulty.getSelectionModel().select(String.valueOf(n.getDifficulty()));
+                keywordRanges.clear();
+                markKeywords();
                 clearDirty();
             } catch(Exception ex){
                 showError("Open failed", ex.getMessage());
@@ -119,70 +150,134 @@ public class NotepadController {
         }
     }
 
-    @FXML public void onSave() {
+    @FXML
+    public void onSave() {
         try {
+            if(currentNote == null) currentNote = new Note();
             File f = currentFile;
             if(f == null){
                 FileChooser fc = new FileChooser();
-                fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("RichText Note","*.rnote"));
+                fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("MindGraph XML","*.xml"));
                 f = fc.showSaveDialog(editor.getScene().getWindow());
                 if(f == null) return;
                 currentFile = f;
             }
+            currentNote.setTitle(txtTitle.getText());
+            currentNote.setDifficulty(parseDifficulty());
+            if(currentNote.getCreatedAt() == null) currentNote.setCreatedAt(LocalDateTime.now());
+            currentNote.setUpdatedAt(LocalDateTime.now());
 
-            Note note = new Note(txtTitle.getText(), "");
-            NoteXmlUtil.save(note, editor, f);
+            List<String> extractedKeywords = KeywordExtractor.extractKeywords(editor.getText());
+            List<String> selectedKeywords = showKeywordSelectionDialog(extractedKeywords);
+            if(selectedKeywords == null) selectedKeywords = List.of();
+            currentNote.setKeywords(selectedKeywords);
+
+            NoteXmlUtil.save(currentNote, editor, f);
+            noteDao.upsert(currentNote, f.getAbsolutePath());
+
+            // Refresh editor
+            NoteXmlUtil.load(currentNote, editor, f);
+            keywordRanges.clear();
+            markKeywords();
+
             lblTitle.setText(txtTitle.getText());
             clearDirty();
-        } catch(Exception ex) {
+        } catch(Exception ex){
             showError("Save failed", ex.getMessage());
             ex.printStackTrace();
         }
     }
 
+    private void markKeywords() {
+        String content = editor.getText();
+        for(String kw : currentNote.getKeywords()){
+            int index = 0;
+            while((index = content.indexOf(kw, index)) >= 0){
+                keywordRanges.add(new KeywordRange(index, index + kw.length(), kw));
+                // Only valid CSS
+                editor.setStyle(index, index + kw.length(), mergeStyle(editor.getStyleOfChar(index),
+                        "-fx-fill: blue; -fx-underline: true;"));
+                index += kw.length();
+            }
+        }
+    }
+
+    @FXML
+    private void onAddImage() {
+        // code to add an image
+        System.out.println("Add image clicked!");
+    }
+
+    @FXML
+    private void onFind() {
+        TextInputDialog dialog = new TextInputDialog();
+        dialog.setTitle("Find Text");
+        dialog.setHeaderText("Enter text to find:");
+        dialog.setContentText("Text:");
+
+        dialog.showAndWait().ifPresent(searchText -> {
+            String content = editor.getText();
+            int index = content.indexOf(searchText);
+            if(index >= 0){
+                editor.selectRange(index, index + searchText.length());
+                editor.requestFocus();
+            } else {
+                Alert alert = new Alert(Alert.AlertType.INFORMATION, "Text not found!", ButtonType.OK);
+                alert.setHeaderText("Find");
+                alert.showAndWait();
+            }
+        });
+    }
+
+    @FXML
+    private void onReplace() {
+        TextInputDialog findDialog = new TextInputDialog();
+        findDialog.setTitle("Find & Replace");
+        findDialog.setHeaderText("Enter the text to find:");
+        findDialog.setContentText("Find:");
+
+        findDialog.showAndWait().ifPresent(findText -> {
+            TextInputDialog replaceDialog = new TextInputDialog();
+            replaceDialog.setTitle("Replace Text");
+            replaceDialog.setHeaderText("Replace with:");
+            replaceDialog.setContentText("Replace:");
+
+            replaceDialog.showAndWait().ifPresent(replaceText -> {
+                String content = editor.getText();
+                content = content.replace(findText, replaceText);
+                editor.replaceText(content);
+            });
+        });
+    }
+
     // --- Styling helpers ---
-    private void toggleStyle(String css) {
+    private void toggleStyle(String css){ appendStyle(css); }
+    private void applyFontSize(int size){ appendStyle("-fx-font-size:" + size + "px;"); }
+    private void applyFontFamily(String family){ appendStyle("-fx-font-family:'" + family + "';"); }
+    private void applyTextColor(Color color){ appendStyle("-fx-fill:" + toRgbString(color) + ";"); }
+    private void applyHighlightColor(Color color){ appendStyle("-fx-background-color:" + toRgbString(color) + ";"); }
+
+    private void appendStyle(String css){
         int start = editor.getSelection().getStart();
         int end = editor.getSelection().getEnd();
         if(start == end) return;
-
-        String current = editor.getStyleOfChar(start);
-        if(current.contains(css)) editor.setStyle(start, end, current.replace(css,""));
-        else editor.setStyle(start, end, current + css);
-
+        for(int i = start; i < end; i++){
+            String current = editor.getStyleOfChar(i);
+            editor.setStyle(i, i+1, mergeStyle(current, css));
+        }
         markDirty();
     }
 
-    private void applyFontSize(int size) {
-        int start = editor.getSelection().getStart();
-        int end = editor.getSelection().getEnd();
-        if(start == end) return;
-        editor.setStyle(start, end, "-fx-font-size:" + size + "px;");
-        markDirty();
-    }
-
-    private void applyFontFamily(String family){
-        int start = editor.getSelection().getStart();
-        int end = editor.getSelection().getEnd();
-        if(start == end) return;
-        editor.setStyle(start, end, "-fx-font-family:'" + family + "';");
-        markDirty();
-    }
-
-    private void applyTextColor(Color color){
-        int start = editor.getSelection().getStart();
-        int end = editor.getSelection().getEnd();
-        if(start == end) return;
-        editor.setStyle(start, end, "-fx-fill:" + toRgbString(color) + ";");
-        markDirty();
-    }
-
-    private void applyHighlightColor(Color color){
-        int start = editor.getSelection().getStart();
-        int end = editor.getSelection().getEnd();
-        if(start == end) return;
-        editor.setStyle(start, end, "-fx-background-color:" + toRgbString(color) + ";");
-        markDirty();
+    private String mergeStyle(String current, String newCss){
+        if(current == null) current = "";
+        if(newCss.contains("-fx-font-weight:")) current = current.replaceAll("-fx-font-weight:[^;]+;", "");
+        if(newCss.contains("-fx-font-style:")) current = current.replaceAll("-fx-font-style:[^;]+;", "");
+        if(newCss.contains("-fx-underline:")) current = current.replaceAll("-fx-underline:[^;]+;", "");
+        if(newCss.contains("-fx-font-size:")) current = current.replaceAll("-fx-font-size:[^;]+;", "");
+        if(newCss.contains("-fx-font-family:")) current = current.replaceAll("-fx-font-family:[^;]+;", "");
+        if(newCss.contains("-fx-fill:")) current = current.replaceAll("-fx-fill:[^;]+;", "");
+        if(newCss.contains("-fx-background-color:")) current = current.replaceAll("-fx-background-color:[^;]+;", "");
+        return current + newCss;
     }
 
     private void applyAlignment(String align){
@@ -191,7 +286,47 @@ public class NotepadController {
         markDirty();
     }
 
-    // --- FXML Event Handlers ---
+    private List<String> showKeywordSelectionDialog(List<String> keywords){
+        if(keywords == null || keywords.isEmpty()) return List.of();
+        Dialog<List<String>> dialog = new Dialog<>();
+        dialog.setTitle("Select Keywords");
+        dialog.setHeaderText("Choose keywords to save with this note");
+
+        ButtonType okButtonType = new ButtonType("Save", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(okButtonType, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(5);
+        int columns = 3;
+        List<CheckBox> checkBoxes = new ArrayList<>();
+        for(int i = 0; i < keywords.size(); i++){
+            CheckBox cb = new CheckBox(keywords.get(i));
+            checkBoxes.add(cb);
+            int col = i % columns;
+            int row = i / columns;
+            grid.add(cb, col, row);
+        }
+
+        ScrollPane scroll = new ScrollPane(grid);
+        scroll.setFitToWidth(true);
+        dialog.getDialogPane().setContent(scroll);
+
+        dialog.setResultConverter(button -> {
+            if(button == okButtonType){
+                List<String> selected = new ArrayList<>();
+                for(CheckBox cb : checkBoxes){
+                    if(cb.isSelected()) selected.add(cb.getText());
+                }
+                return selected;
+            }
+            return null;
+        });
+
+        return dialog.showAndWait().orElse(List.of());
+    }
+
+    // --- Misc helpers ---
     @FXML private void onBold() { toggleStyle(BOLD); }
     @FXML private void onItalic() { toggleStyle(ITALIC); }
     @FXML private void onUnderline() { toggleStyle(UNDERLINE); }
@@ -200,12 +335,8 @@ public class NotepadController {
     @FXML private void onAlignCenter() { applyAlignment("center"); }
     @FXML private void onAlignRight() { applyAlignment("right"); }
 
-    @FXML private void onAddImage() { /* TODO: implement image insertion */ }
     @FXML private void onToggleEdit() { editor.setEditable(toggleEdit.isSelected()); }
-    @FXML private void onFind() { /* TODO: implement find */ }
-    @FXML private void onReplace() { /* TODO: implement replace */ }
 
-    // --- Helper methods ---
     private void markDirty(){ dirty = true; lblSaved.setText("● Unsaved"); updateCounts(); }
     private void clearDirty(){ dirty = false; lblSaved.setText("Saved"); updateCounts(); }
 
@@ -238,5 +369,10 @@ public class NotepadController {
 
     private String toRgbString(Color c){
         return "rgb(" + (int)(c.getRed()*255) + "," + (int)(c.getGreen()*255) + "," + (int)(c.getBlue()*255) + ")";
+    }
+
+    private int parseDifficulty(){
+        try { return Integer.parseInt(cmbDifficulty.getValue()); }
+        catch (Exception e) { return 1; }
     }
 }

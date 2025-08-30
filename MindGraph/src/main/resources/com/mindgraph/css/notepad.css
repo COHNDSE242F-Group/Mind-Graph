@@ -1,14 +1,18 @@
+/* Root pane */
 .app-root {
   -fx-font-family: "Segoe UI", system-ui, sans-serif;
   -fx-background-color: linear-gradient(to bottom, #f7f7f9, #f1f3f6);
 }
 
+/* Top toolbar */
 .topbar {
   -fx-background-color: #ffffff;
   -fx-padding: 8 10;
   -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.08), 12, 0.1, 0, 2);
+  -fx-spacing: 6;
 }
 
+/* Status bar at bottom */
 .statusbar {
   -fx-background-color: #ffffff;
   -fx-padding: 8 12;
@@ -16,11 +20,13 @@
   -fx-border-width: 1 0 0 0;
 }
 
+/* Buttons and toggle-buttons */
 .button, .toggle-button {
-  -fx-background-radius: 10;
+  -fx-background-radius: 8;
   -fx-background-color: #eef2f7;
   -fx-text-fill: #222;
   -fx-padding: 6 14;
+  -fx-cursor: hand;
 }
 .button:hover, .toggle-button:hover {
   -fx-background-color: #e6ebf2;
@@ -30,32 +36,64 @@
   -fx-text-fill: white;
 }
 
+/* Formatting buttons */
 .fmt-btn {
   -fx-font-weight: bold;
 }
 .fmt-btn[text="I"] { -fx-font-style: italic; }
 .fmt-btn[text="U"] { -fx-underline: true; }
 
+/* Unsaved dot indicator */
 .unsaved-dot {
   -fx-text-fill: #ef4444;
   -fx-font-weight: 600;
 }
 
-/* RichTextFX area skin */
+/* RichTextFX editor */
 .styled-text-area {
-  -fx-background-color: white;
-  -fx-padding: 18;
-  -fx-background-radius: 14;
+  -fx-background-color: #ffffff;
+  -fx-padding: 16;
+  -fx-background-radius: 12;
   -fx-border-color: #e6e8eb;
-  -fx-border-radius: 14;
-  -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 18, 0.2, 0, 3);
+  -fx-border-radius: 12;
+  -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 16, 0.2, 0, 3);
+  -fx-focus-color: #2563eb;
+  -fx-faint-focus-color: rgba(37,99,235,0.2);
 }
 
+/* Highlight the paragraph where the caret is */
 .styled-text-area .paragraph-box:has-caret {
   -fx-background-color: rgba(37,99,235,0.05);
 }
 
-/* Inline styles for formatting */
+/* Keyword links */
+.keyword-link {
+  -fx-fill: #2563eb;
+  -fx-underline: true;
+  -fx-cursor: hand;
+}
+
+/* Inline styles for text formatting */
 .bold { -fx-font-weight: bold; }
 .italic { -fx-font-style: italic; }
 .underline { -fx-underline: true; }
+
+/* ColorPickers */
+.color-picker {
+  -fx-background-radius: 6;
+  -fx-padding: 2;
+  -fx-border-color: #d1d5db;
+  -fx-border-radius: 6;
+}
+.color-picker:hover {
+  -fx-border-color: #2563eb;
+}
+
+/* ScrollPane for editor */
+.scroll-pane {
+  -fx-background-color: transparent;
+  -fx-padding: 4;
+}
+.scroll-pane .viewport {
+  -fx-background-color: transparent;
+}

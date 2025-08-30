@@ -4,19 +4,39 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
 
+/** Creates table if missing and performs gentle migrations if columns are missing. */
 public class DatabaseSetup {
     public static void init(String path) throws Exception {
         try (Connection c = DriverManager.getConnection("jdbc:sqlite:" + path)) {
             try (Statement s = c.createStatement()) {
+                // Base table
                 s.execute("""
-          CREATE TABLE IF NOT EXISTS notes (
-            id TEXT PRIMARY KEY,
-            title TEXT NOT NULL,
-            content TEXT,
-            created_at TEXT,
-            updated_at TEXT
-          );
-        """);
+                    CREATE TABLE IF NOT EXISTS notes (
+                      id TEXT PRIMARY KEY,
+                      title TEXT NOT NULL,
+                      file_path TEXT,        -- may be null initially; we'll backfill on first save
+                      keywords TEXT,         -- CSV
+                      difficulty INTEGER DEFAULT 1,
+                      created_at TEXT,
+                      updated_at TEXT
+                    );
+                """);
+
+                // Migrations for older schemas
+                try { s.execute("ALTER TABLE notes ADD COLUMN file_path TEXT;"); }
+                catch (Exception ignore) { /* duplicate column name */ }
+
+                try { s.execute("ALTER TABLE notes ADD COLUMN keywords TEXT;"); }
+                catch (Exception ignore) { /* duplicate column name */ }
+
+                try { s.execute("ALTER TABLE notes ADD COLUMN difficulty INTEGER DEFAULT 1;"); }
+                catch (Exception ignore) { /* duplicate column name */ }
+
+                try { s.execute("ALTER TABLE notes ADD COLUMN created_at TEXT;"); }
+                catch (Exception ignore) { /* duplicate column name */ }
+
+                try { s.execute("ALTER TABLE notes ADD COLUMN updated_at TEXT;"); }
+                catch (Exception ignore) { /* duplicate column name */ }
             }
         }
     }

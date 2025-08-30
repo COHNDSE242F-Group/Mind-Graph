@@ -2,13 +2,11 @@
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.control.*?>
 <?import javafx.geometry.Insets?>
-<?import javafx.scene.text.Font?>
 
 <BorderPane xmlns:fx="http://javafx.com/fxml"
             fx:controller="org.mindgraph.controller.NotepadController"
             prefWidth="1000" prefHeight="700" styleClass="app-root">
 
-    <!-- Top toolbar -->
     <top>
         <VBox>
             <!-- Note title and settings -->
@@ -28,6 +26,12 @@
 
                 <Label text="Font Size:"/>
                 <Spinner fx:id="spinnerFont" prefWidth="80"/>
+
+                <Label text="Text Color:"/>
+                <ColorPicker fx:id="cpTextColor" prefWidth="100"/>
+
+                <Label text="Highlight:"/>
+                <ColorPicker fx:id="cpHighlight" prefWidth="100"/>
 
                 <Button fx:id="btnAddImage" text="Add Image" onAction="#onAddImage"/>
             </HBox>
@@ -51,25 +55,24 @@
                 <Button fx:id="btnItalic" text="I" onAction="#onItalic" styleClass="fmt-btn"/>
                 <Button fx:id="btnUnderline" text="U" onAction="#onUnderline" styleClass="fmt-btn"/>
 
-                <!-- Alignment buttons (newly added to match controller) -->
+                <!-- Alignment buttons -->
                 <Button fx:id="btnAlignLeft" text="Left" onAction="#onAlignLeft"/>
                 <Button fx:id="btnAlignCenter" text="Center" onAction="#onAlignCenter"/>
                 <Button fx:id="btnAlignRight" text="Right" onAction="#onAlignRight"/>
 
-                <!-- Fill remaining space -->
                 <Pane HBox.hgrow="ALWAYS"/>
                 <Label fx:id="lblSaved" text="● Unsaved" styleClass="unsaved-dot"/>
             </ToolBar>
         </VBox>
     </top>
 
-    <!-- Center editor -->
     <center>
-        <!-- The RichTextFX area is injected in controller -->
-        <StackPane fx:id="editorHost" BorderPane.alignment="CENTER"/>
+        <!-- Editor area wrapped in ScrollPane -->
+        <ScrollPane fitToWidth="true" fitToHeight="true" BorderPane.alignment="CENTER">
+            <StackPane fx:id="editorHost"/>
+        </ScrollPane>
     </center>
 
-    <!-- Bottom status bar -->
     <bottom>
         <HBox spacing="16" alignment="CENTER_LEFT" styleClass="statusbar">
             <padding>

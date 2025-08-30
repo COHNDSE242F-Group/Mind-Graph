@@ -12,11 +12,16 @@ import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
 import org.fxmisc.richtext.InlineCssTextArea;
 import org.mindgraph.model.Note;
+import org.mindgraph.model.NoteEntry;
 import org.mindgraph.util.NoteXmlUtil;
+import org.mindgraph.datastructure.Stack;
+import org.mindgraph.model.Note;
 
 import java.io.File;
 
 public class NotepadController {
+
+    private Stack history = new Stack();  // stack of opened notes
 
     // --- FXML Fields ---
     @FXML private StackPane editorHost;
@@ -151,6 +156,8 @@ public class NotepadController {
             currentFile = f;
             lblTitle.setText(f.getName());
             txtTitle.setText(f.getName());
+
+            history.push(new NoteEntry(note,f));  // add opened note with file name to Stack
             clearDirty();
         } catch (Exception ex) {
             showError("Load failed", ex.getMessage());
@@ -260,8 +267,17 @@ public class NotepadController {
     }
 
     public void onPrev(ActionEvent actionEvent) {
-        if(currentFile != null){
-            loadFile(currentFile);  // later replace with stack.pop()
+        if (history.isEmpty()) {
+            showError("No history", "No previous notes available.");
+            return;
+        }
+
+        NoteEntry prev = history.pop();  // go back one step
+        if (prev != null && prev.getFile() != null){
+            loadFile(prev.getFile());    // reload full file into editor
+        }
+        else {
+            showError("History error", "Previous note entry is invalid.");
         }
     }
 

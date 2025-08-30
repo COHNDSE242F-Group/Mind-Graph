@@ -2,11 +2,13 @@
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.control.*?>
 <?import javafx.geometry.Insets?>
+<?import javafx.scene.text.Font?>
 
 <BorderPane xmlns:fx="http://javafx.com/fxml"
             fx:controller="org.mindgraph.controller.NotepadController"
             prefWidth="1000" prefHeight="700" styleClass="app-root">
 
+    <!-- Top toolbar -->
     <top>
         <VBox>
             <!-- Note title and settings -->
@@ -27,12 +29,20 @@
                 <Label text="Font Size:"/>
                 <Spinner fx:id="spinnerFont" prefWidth="80"/>
 
+                <!-- ✅ Added Mode ComboBox -->
+                <Label text="Mode:"/>
+                <ComboBox fx:id="cmbMode" prefWidth="120"/>
+
                 <Label text="Text Color:"/>
                 <ColorPicker fx:id="cpTextColor" prefWidth="100"/>
 
                 <Label text="Highlight:"/>
                 <ColorPicker fx:id="cpHighlight" prefWidth="100"/>
 
+                <!-- Spacer -->
+                <Pane HBox.hgrow="ALWAYS"/>
+
+                <!-- Actions -->
                 <Button fx:id="btnAddImage" text="Add Image" onAction="#onAddImage"/>
             </HBox>
 
@@ -41,6 +51,8 @@
                 <Button fx:id="btnNew" text="New" onAction="#onNew"/>
                 <Button fx:id="btnOpen" text="Open" onAction="#onOpen"/>
                 <Button fx:id="btnSave" text="Save" onAction="#onSave"/>
+                <Button fx:id="btnPrev" text="&lt; Prev" onAction="#onPrev"/>
+                <Button fx:id="btnNext" text="Next &gt;" onAction="#onNext"/>
 
                 <Separator orientation="VERTICAL"/>
 
@@ -60,19 +72,21 @@
                 <Button fx:id="btnAlignCenter" text="Center" onAction="#onAlignCenter"/>
                 <Button fx:id="btnAlignRight" text="Right" onAction="#onAlignRight"/>
 
+                <!-- Fill remaining space -->
                 <Pane HBox.hgrow="ALWAYS"/>
                 <Label fx:id="lblSaved" text="● Unsaved" styleClass="unsaved-dot"/>
             </ToolBar>
         </VBox>
     </top>
 
+    <!-- Center editor -->
     <center>
-        <!-- Editor area wrapped in ScrollPane -->
         <ScrollPane fitToWidth="true" fitToHeight="true" BorderPane.alignment="CENTER">
             <StackPane fx:id="editorHost"/>
         </ScrollPane>
     </center>
 
+    <!-- Bottom status bar -->
     <bottom>
         <HBox spacing="16" alignment="CENTER_LEFT" styleClass="statusbar">
             <padding>

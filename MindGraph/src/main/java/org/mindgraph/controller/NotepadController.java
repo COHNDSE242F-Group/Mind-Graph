@@ -2,6 +2,7 @@ package org.mindgraph.controller;
 
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
+import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
@@ -15,7 +16,10 @@ import org.fxmisc.richtext.InlineCssTextArea;
 import org.mindgraph.db.NoteDao;
 import org.mindgraph.model.Note;
 import org.mindgraph.util.KeywordExtractor;
+import org.mindgraph.model.NoteEntry;
 import org.mindgraph.util.NoteXmlUtil;
+import org.mindgraph.datastructure.Stack;
+import org.mindgraph.model.Note;
 
 import java.io.File;
 import java.time.LocalDateTime;
@@ -24,6 +28,9 @@ import java.util.List;
 
 public class NotepadController {
 
+    private Stack history = new Stack();  // stack of opened notes
+
+    // --- FXML Fields ---
     @FXML private StackPane editorHost;
     @FXML private ToggleButton toggleEdit;
     @FXML private Button btnNew, btnOpen, btnSave;
@@ -35,6 +42,8 @@ public class NotepadController {
     @FXML private Label lblSaved, lblTitle, lblCursor, lblWords, lblChars;
     @FXML private TextField txtTitle;
     @FXML private ComboBox<String> cmbDifficulty;
+    @FXML private ComboBox<String> cmbMode;
+    @FXML private Button btnAddImage, btnFind, btnRep;
 
     private InlineCssTextArea editor;
     private boolean dirty = false;
@@ -65,6 +74,15 @@ public class NotepadController {
         cmbDifficulty.setItems(FXCollections.observableArrayList("1","2","3","4","5"));
         cmbDifficulty.getSelectionModel().select("1");
 
+        cmbMode.setItems(FXCollections.observableArrayList(
+                "Concept Map",        //Graph
+                "Backtrack Mode",         //tack
+                "Revision",               //Queue
+                "Session History"         //Linked List
+        ));
+        cmbMode.getSelectionModel().selectFirst(); // default selection
+
+        // Font size
         spinnerFont.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(8,72,14));
 
         editor.textProperty().addListener((obs, ov, nv) -> markDirty());
@@ -101,6 +119,9 @@ public class NotepadController {
                 }
             }
         });
+
+
+
     }
 
     private void showKeywordAlert(String keyword){
@@ -149,6 +170,7 @@ public class NotepadController {
             }
         }
     }
+
 
     @FXML
     public void onSave() {
@@ -249,6 +271,23 @@ public class NotepadController {
             });
         });
     }
+
+    private void loadFile(File f) {
+        try {
+            Note note = new Note();
+            NoteXmlUtil.load(note, editor, f);
+            currentFile = f;
+            lblTitle.setText(f.getName());
+            txtTitle.setText(f.getName());
+
+            history.push(new NoteEntry(note,f));  // add opened note with file name to Stack
+            clearDirty();
+        } catch (Exception ex) {
+            showError("Load failed", ex.getMessage());
+            ex.printStackTrace();
+        }
+    }
+
 
     // --- Styling helpers ---
     private void toggleStyle(String css){ appendStyle(css); }
@@ -375,4 +414,28 @@ public class NotepadController {
         try { return Integer.parseInt(cmbDifficulty.getValue()); }
         catch (Exception e) { return 1; }
     }
+
+    public void onPrev(ActionEvent actionEvent) {
+        if (history.isEmpty()) {
+            showError("No history", "No previous notes available.");
+            return;
+        }
+
+        NoteEntry prev = history.pop();  // go back one step
+        if (prev != null && prev.getFile() != null){
+            loadFile(prev.getFile());    // reload full file into editor
+        }
+        else {
+            showError("History error", "Previous note entry is invalid.");
+        }
+    }
+
+
+    public void onNext(ActionEvent actionEvent) {
+        if(currentFile!=null){
+            loadFile(currentFile);  // later replace with stack.peek()/push
+        }
+    }
+
 }
+

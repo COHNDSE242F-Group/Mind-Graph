@@ -1,6 +1,6 @@
 .app-root {
   -fx-font-family: "Segoe UI", system-ui, sans-serif;
-  -fx-background-color: linear-gradient(to bottom right, #f9fafb, #eef1f6);
+  -fx-background-color: linear-gradient(to bottom, #f7f7f9, #f1f3f6);
 }
 
 /* Toolbar */
@@ -17,7 +17,7 @@
 .statusbar {
   -fx-background-color: #ffffff;
   -fx-padding: 8 12;
-  -fx-border-color: #e5e7eb;
+  -fx-border-color: #e6e8eb;
   -fx-border-width: 1 0 0 0;
   -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.04), 8, 0.15, 0, -1);
 }
@@ -70,26 +70,51 @@
   -fx-effect: dropshadow(gaussian, rgba(239,68,68,0.3), 8, 0.2, 0, 1);
 }
 
-/* RichTextFX editor */
+/* RichTextFX area skin */
 .styled-text-area {
-  -fx-background-color: white;
-  -fx-padding: 20;
-  -fx-background-radius: 16;
-  -fx-border-color: #e5e7eb;
-  -fx-border-radius: 16;
-  -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 22, 0.25, 0, 4);
-  -fx-font-size: 14px;
-  -fx-line-spacing: 1.4em;
+  -fx-background-color: #ffffff;
+  -fx-padding: 16;
+  -fx-background-radius: 12;
+  -fx-border-color: #e6e8eb;
+  -fx-border-radius: 12;
+  -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 16, 0.2, 0, 3);
+  -fx-focus-color: #2563eb;
+  -fx-faint-focus-color: rgba(37,99,235,0.2);
 }
 
+/* Highlight the paragraph where the caret is */
 .styled-text-area .paragraph-box:has-caret {
-  -fx-background-color: rgba(37,99,235,0.06);
-  -fx-background-radius: 6;
+  -fx-background-color: rgba(37,99,235,0.05);
 }
 
-/* Inline text styles */
+/* Keyword links */
+.keyword-link {
+  -fx-fill: #2563eb;
+  -fx-underline: true;
+  -fx-cursor: hand;
+}
+
+/* Inline styles for text formatting */
 .bold { -fx-font-weight: bold; }
 .italic { -fx-font-style: italic; }
 .underline { -fx-underline: true; }
 
+/* ColorPickers */
+.color-picker {
+  -fx-background-radius: 6;
+  -fx-padding: 2;
+  -fx-border-color: #d1d5db;
+  -fx-border-radius: 6;
+}
+.color-picker:hover {
+  -fx-border-color: #2563eb;
+}
 
+/* ScrollPane for editor */
+.scroll-pane {
+  -fx-background-color: transparent;
+  -fx-padding: 4;
+}
+.scroll-pane .viewport {
+  -fx-background-color: transparent;
+}

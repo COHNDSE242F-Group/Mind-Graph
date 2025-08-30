@@ -57,7 +57,18 @@ public class RevisionController {
         if (next != null) {
             revisionArea.clear();
             lblRevisionTitle.setText(next.getTitle());
-            revisionArea.replaceText(next.getContentMarkup()); // Show content directly
+
+            try {
+                File noteFile = new File(next.getFilePath());
+                if (noteFile.exists()) {
+                    NoteXmlUtil.load(next, revisionArea, noteFile);
+                } else {
+                    revisionArea.replaceText("Note content file not found.");
+                }
+            } catch (Exception e) {
+                revisionArea.replaceText("Error loading note content.");
+                e.printStackTrace();
+            }
         } else {
             lblRevisionTitle.setText("No more notes to revise!");
             revisionArea.clear();

@@ -82,6 +82,7 @@ public class NotepadController {
     private ObservableList<Note> sessionHistoryList = FXCollections.observableArrayList();
     private ListView<Note> suggestionListView = new ListView<>();
     private Popup suggestionPopup = new Popup(); //
+    private final ObservableList<Note> studyPlanList = FXCollections.observableArrayList();
     ;
     @FXML private ComboBox<String> cmbSessionSort;
     // --- Add ComboBox in your FXML and Controller ---
@@ -127,14 +128,13 @@ public class NotepadController {
         cmbDifficulty.getSelectionModel().select("1");
 
         cmbMode.setItems(FXCollections.observableArrayList(
-                "Concept Map", //Graph
-                "Backtrack Mode", //tack
-                "Revision", //Queue
-                "Session History" //Linked List
+                "Concept Map",
+                "Backtrack Mode",
+                "Revision",
+                "Session History"
         ));
-        cmbMode.getSelectionModel().selectFirst(); // default selection
+        cmbMode.getSelectionModel().selectFirst();
 
-        // Font size
         spinnerFont.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(8, 72, 14));
 
         editor.textProperty().addListener((obs, ov, nv) -> markDirty());
@@ -163,7 +163,6 @@ public class NotepadController {
         updateCounts();
         updateCaret();
 
-        // Handle clicks on keyword ranges
         editor.setOnMouseClicked(event -> {
             int pos = editor.getCaretPosition();
             for (KeywordRange kr : keywordRanges) {
@@ -172,7 +171,6 @@ public class NotepadController {
                     String keyword = parts[0];
                     int linkedNoteId = Integer.parseInt(parts[1]);
 
-                    // Get the linked note from the graph
                     Note linkedNote = graphController.getGraph().getGraphNodes()
                             .keySet()
                             .stream()
@@ -182,21 +180,14 @@ public class NotepadController {
 
                     if (linkedNote != null) {
                         if (inRevisionMode) {
-                            // --- Revision Mode Behavior ---
-                            // Push current queue note to back stack only if it's from the queue
                             if (currentQueueNote != null && currentQueueNote != linkedNote) {
                                 revisionBackStack.push(currentQueueNote);
                             }
-
-                            // Load the linked note
                             loadNoteInEditor(linkedNote, false);
-
-                            // Disable Next since user is now off the main queue path
                             btnNext.setDisable(true);
                             btnPrev.setDisable(false);
                         } else {
-                            // --- Normal Mode ---
-                            loadNoteInEditor(linkedNote, true); // push current note to history
+                            loadNoteInEditor(linkedNote, true);
                         }
                     }
                     break;
@@ -204,9 +195,8 @@ public class NotepadController {
             }
         });
 
-        // Mouse move handler for changing cursor over links
         editor.setOnMouseMoved(event -> {
-            int pos = editor.hit(event.getX(), event.getY()).getInsertionIndex(); // char under mouse
+            int pos = editor.hit(event.getX(), event.getY()).getInsertionIndex();
             boolean overLink = false;
             for (KeywordRange kr : keywordRanges) {
                 if (pos >= kr.start && pos < kr.end) {
@@ -214,16 +204,12 @@ public class NotepadController {
                     break;
                 }
             }
-            if (overLink) {
-                editor.setCursor(javafx.scene.Cursor.HAND);
-            } else {
-                editor.setCursor(javafx.scene.Cursor.TEXT);
-            }
+            editor.setCursor(overLink ? javafx.scene.Cursor.HAND : javafx.scene.Cursor.TEXT);
         });
 
         Platform.runLater(() -> {
             try {
-                graphController.buildGraphFromDb(false); // build graph without resetting
+                graphController.buildGraphFromDb(false);
                 System.out.println("Graph built with " + graphController.getGraph().getGraphNodes().size() + " nodes.");
             } catch (SQLException e) {
                 showError("Graph Initialization Failed", e.getMessage());
@@ -236,136 +222,110 @@ public class NotepadController {
                 inRevisionMode = true;
                 revisionBackStack.clear();
 
-                // Ensure revision controller exists
                 if (revisionController == null) {
                     revisionController = new RevisionController();
                 }
 
-                // Pass graph reference from graphController
                 if (graphController.getGraph() != null) {
                     revisionController.setGraph(graphController.getGraph());
                 }
 
-        loadSessionHistoryFromDB();
-        // Remove all FilteredList related code and replace with:
-        cmbSessionHistory.setEditable(true);
-        cmbSessionHistory.setItems(sessionHistoryList);
+                loadSessionHistoryFromDB();
+                cmbSessionHistory.setEditable(true);
+                cmbSessionHistory.setItems(sessionHistoryList);
 
+                cmbSessionHistory.setCellFactory(lv -> new ListCell<Note>() {
+                    @Override
+                    protected void updateItem(Note item, boolean empty) {
+                        super.updateItem(item, empty);
+                        setText(empty || item == null ? null : item.getTitle());
+                    }
+                });
 
+                cmbSessionHistory.setButtonCell(new ListCell<Note>() {
+                    @Override
+                    protected void updateItem(Note item, boolean empty) {
+                        super.updateItem(item, empty);
+                        setText(empty || item == null ? "" : item.getTitle());
+                    }
+                });
 
-// Make ComboBox display Note titles
-        cmbSessionHistory.setCellFactory(lv -> new ListCell<Note>() {
-            @Override
-            protected void updateItem(Note item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? null : item.getTitle());
-            }
-        });
+                setupSuggestionPopup();
 
-// Set button cell so the selected item shows title
-        cmbSessionHistory.setButtonCell(new ListCell<Note>() {
-            @Override
-            protected void updateItem(Note item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? "" : item.getTitle());
-            }
-        });
+                cmbSessionHistory.getEditor().textProperty().addListener((obs2, oldVal, newVal) -> {
+                    filterAndShowSuggestions(newVal);
+                    Note match = sessionHistoryList.stream()
+                            .filter(n -> n.getTitle().equalsIgnoreCase(newVal))
+                            .findFirst()
+                            .orElse(null);
+                    cmbSessionHistory.setValue(match);
+                });
 
+                cmbSessionHistory.focusedProperty().addListener((obs3, oldVal, newVal) -> {
+                    if (!newVal) suggestionPopup.hide();
+                });
 
-        // Setup suggestion popup
-        setupSuggestionPopup();
+                cmbSessionHistory.getEditor().setOnKeyPressed(event -> {
+                    if (event.getCode() == KeyCode.ENTER) {
+                        onLoadHistory();
+                        event.consume();
+                    } else if (event.getCode() == KeyCode.ESCAPE) {
+                        suggestionPopup.hide();
+                        event.consume();
+                    }
+                });
 
-        cmbSessionHistory.getEditor().textProperty().addListener((obs, oldVal, newVal) -> {
-            filterAndShowSuggestions(newVal);
+                cmbSessionHistory.getSelectionModel().selectedItemProperty().addListener((obs4, oldVal, newVal) -> {
+                    if (newVal != null) {
+                        Platform.runLater(() -> cmbSessionHistory.getEditor().setText(newVal.getTitle()));
+                    } else {
+                        Platform.runLater(() -> cmbSessionHistory.getEditor().clear());
+                    }
+                });
 
-            // Avoid setting raw string as value
-            Note match = sessionHistoryList.stream()
-                    .filter(n -> n.getTitle().equalsIgnoreCase(newVal))
-                    .findFirst()
-                    .orElse(null);
-            if (match != null) {
-                cmbSessionHistory.setValue(match); // safe, it's a Note
-            } else {
-                cmbSessionHistory.setValue(null); // safe
-            }
-        });
-        // Hide popup when focus lost
-        cmbSessionHistory.focusedProperty().addListener((obs, oldVal, newVal) -> {
-            if (!newVal) {
-                suggestionPopup.hide();
-            }
-        });
-// Add keyboard support for the combobox editor
-        cmbSessionHistory.getEditor().setOnKeyPressed(event -> {
-            if (event.getCode() == KeyCode.ENTER) {
-                onLoadHistory();
-                event.consume();
-            } else if (event.getCode() == KeyCode.ESCAPE) {
-                suggestionPopup.hide();
-                event.consume();
-            }
-        });
+                cmbSessionHistory.setConverter(new StringConverter<Note>() {
+                    @Override
+                    public String toString(Note note) {
+                        return note == null ? "" : note.getTitle();
+                    }
 
-        cmbSessionHistory.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal != null) {
-                Platform.runLater(() -> cmbSessionHistory.getEditor().setText(newVal.getTitle()));
-            } else {
-                Platform.runLater(() -> cmbSessionHistory.getEditor().clear());
-            }
-        });
-        cmbSessionHistory.setConverter(new StringConverter<Note>() {
-            @Override
-            public String toString(Note note) {
-                return note == null ? "" : note.getTitle();
-            }
+                    @Override
+                    public Note fromString(String string) {
+                        if (string == null || string.isBlank()) return null;
+                        return sessionHistoryList.stream()
+                                .filter(n -> n.getTitle().equalsIgnoreCase(string))
+                                .findFirst()
+                                .orElse(null);
+                    }
+                });
 
-            @Override
-            public Note fromString(String string) {
-                if (string == null || string.isBlank()) return null;
-                // Return a matching Note from the list
-                return sessionHistoryList.stream()
-                        .filter(n -> n.getTitle().equalsIgnoreCase(string))
-                        .findFirst()
-                        .orElse(null);
-            }
-        });
+                cmbSessionSort.setItems(FXCollections.observableArrayList("Newest","Oldest","MostUsed"));
+                cmbSessionSort.getSelectionModel().select("Newest");
+                cmbSessionSort.valueProperty().addListener((obs5, oldVal, newVal) -> loadSessionHistoryFromDB());
 
+                studyPlanList.setAll(studyPlanManager.getPlan()); // load initial items
+                cmbStudyPlan.setItems(studyPlanList); // bind ComboBox to observable list
+                cmbStudyPlan.setCellFactory(lv -> new ListCell<Note>() {
+                    @Override
+                    protected void updateItem(Note item, boolean empty) {
+                        super.updateItem(item, empty);
+                        setText(empty || item == null ? null : item.getTitle());
+                    }
+                });
+                cmbStudyPlan.setButtonCell(new ListCell<Note>() {
+                    @Override
+                    protected void updateItem(Note item, boolean empty) {
+                        super.updateItem(item, empty);
+                        setText(empty || item == null ? null : item.getTitle());
+                    }
+                });
 
-
-        cmbSessionSort.setItems(FXCollections.observableArrayList("Newest","Oldest","MostUsed"));
-        cmbSessionSort.getSelectionModel().select("Newest");
-
-        cmbSessionSort.valueProperty().addListener((obs, oldVal, newVal) -> loadSessionHistoryFromDB());
-        // Load Study Plan
-        cmbStudyPlan.setItems(FXCollections.observableArrayList(studyPlanManager.getPlan()));
-        // In initialize() method, after loading study plan:
-        cmbStudyPlan.setCellFactory(lv -> new ListCell<Note>() {
-            @Override
-            protected void updateItem(Note item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? null : item.getTitle());
-            }
-        });
-
-        cmbStudyPlan.setButtonCell(new ListCell<Note>() {
-            @Override
-            protected void updateItem(Note item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? null : item.getTitle());
-            }
-        });
-
-
-                // Prepare the queue if empty
                 revisionController.prepareNextNote();
-
-                // Load and dequeue the first note
                 currentQueueNote = revisionController.dequeueNextNote();
-
                 if (currentQueueNote != null) {
-                    loadNoteInEditor(currentQueueNote, false); // do NOT push to history
-                    btnPrev.setDisable(true);  // cannot go back yet
-                    btnNext.setDisable(!revisionController.hasNotes()); // disable if queue is empty
+                    loadNoteInEditor(currentQueueNote, false);
+                    btnPrev.setDisable(true);
+                    btnNext.setDisable(!revisionController.hasNotes());
                 } else {
                     showError("Revision Empty", "No notes available for revision.");
                     btnPrev.setDisable(true);
@@ -377,6 +337,24 @@ public class NotepadController {
                 btnPrev.setDisable(false);
                 btnNext.setDisable(false);
             }
+
+            studyPlanList.setAll(studyPlanManager.getPlan());
+            cmbStudyPlan.setItems(studyPlanList);
+
+            cmbStudyPlan.setCellFactory(lv -> new ListCell<Note>() {
+                @Override
+                protected void updateItem(Note item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty || item == null ? null : item.getTitle());
+                }
+            });
+            cmbStudyPlan.setButtonCell(new ListCell<Note>() {
+                @Override
+                protected void updateItem(Note item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty || item == null ? null : item.getTitle());
+                }
+            });
         });
     }
 
@@ -431,13 +409,15 @@ public class NotepadController {
                 noteDao.updateSession(currentNote);
                 updateSession(currentNote); // optional, updates title/difficulty
 
-                noteDao.incrementUsageCount(currentNote.getId());
+                try {
+                    noteDao.incrementUsageCount(currentNote.getId());
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                    showError("Database Error", "Failed to increment usage count: " + e.getMessage());
+                }
                 loadSessionHistoryFromDB();
 
 
-            } catch(Exception ex){
-                showError("Open failed", ex.getMessage());
-                ex.printStackTrace();
             }
         }
     }
@@ -490,11 +470,7 @@ public class NotepadController {
                 showError("Graph Update Failed", e.getMessage());
                 e.printStackTrace();
             }
-        } catch (Exception ex) {
-            showError("Save failed", ex.getMessage());
-            ex.printStackTrace();
         }
-
     }
 
     private void markKeywords() {
@@ -576,35 +552,6 @@ public class NotepadController {
                 editor.replaceText(content);
             });
         });
-    }
-
-    private void loadFile(File f) {
-        try {
-            Note note = new Note();
-            NoteXmlUtil.load(note, editor, f);
-            currentNote = note;
-            currentFile = f;
-            currentNote = note;
-
-            lblTitle.setText(f.getName());
-            txtTitle.setText(f.getName());
-            lblTitle.setText(note.getTitle());
-            txtTitle.setText(note.getTitle());
-
-            // Push note to history for backtracking
-            history.push(note);
-            clearDirty();
-
-            history.push(new NoteEntry(note,f));
-            saveSession(note); // record session
-            noteDao.incrementUsageCount(currentNote.getId());
-            loadSessionHistoryFromDB();
-        } catch (Exception ex) {
-            showError("Load failed", ex.getMessage());
-            ex.printStackTrace();
-        }
-
-
     }
 
     // --- Styling helpers ---
@@ -887,28 +834,26 @@ public class NotepadController {
     }
 
     private void loadSelectedNote(Note selected) {
-        File f = new File(selected.getFilePath());
-        if (!f.exists()) {
-            showError("File not found", "The note file does not exist on disk.");
-            return;
+        if (selected == null) return;
+
+        // Push current note to history for backtracking
+        if (currentNote != null) {
+            history.push(currentNote);
         }
 
+        // Load the selected note directly
+        loadNoteInEditor(selected, false);
+
+        // Increment usage count safely
         try {
-            loadFile(f);
             noteDao.incrementUsageCount(selected.getId());
-
-            // Clear the editor text after successful load
-            Platform.runLater(() -> {
-                cmbSessionHistory.getEditor().clear();
-            });
-
         } catch (SQLException ex) {
             ex.printStackTrace();
             showError("Database error", "Could not update usage count.");
-        } catch (Exception ex) {
-            ex.printStackTrace();
-            showError("Error", "Could not load note.");
         }
+
+        // Clear the editor text after successful load in session history combo
+        Platform.runLater(() -> cmbSessionHistory.getEditor().clear());
     }
     private void saveSession(Note note) {
         try {
@@ -980,9 +925,9 @@ public class NotepadController {
 
     @FXML
     private void onAddToStudyPlan() {
-        if (currentNote != null) {
+        if (currentNote != null && currentNote.getTitle() != null && !currentNote.getTitle().isBlank()) {
             studyPlanManager.addNote(currentNote);
-            refreshStudyPlanCombo();
+            refreshStudyPlanCombo(); // update ComboBox
         }
     }
 
@@ -991,7 +936,7 @@ public class NotepadController {
         Note selected = cmbStudyPlan.getSelectionModel().getSelectedItem();
         if (selected != null) {
             studyPlanManager.removeNote(selected);
-            refreshStudyPlanCombo();
+            refreshStudyPlanCombo(); // update ComboBox
         }
     }
 

@@ -118,6 +118,7 @@ public class RevisionController implements Serializable {
         }
     }
 
+
     // ---------------- Serialization ----------------
     private void saveQueue(Queue queue, File file) {
         try (var out = new java.io.ObjectOutputStream(new java.io.FileOutputStream(file))) {
@@ -133,6 +134,9 @@ public class RevisionController implements Serializable {
         } catch (Exception e) {
             e.printStackTrace();
             return new Queue();
+
+    
+
         }
     }
 }

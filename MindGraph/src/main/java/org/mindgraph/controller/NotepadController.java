@@ -22,6 +22,7 @@ import org.mindgraph.datastructure.Stack;
 import org.mindgraph.model.Note;
 
 import java.io.File;
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +30,7 @@ import java.util.List;
 public class NotepadController {
 
     private Stack history = new Stack();  // stack of opened notes
+    private final GraphController graphController = new GraphController("graph.dat");
 
     // --- FXML Fields ---
     @FXML private StackPane editorHost;
@@ -112,21 +114,62 @@ public class NotepadController {
         // Handle clicks on keyword ranges
         editor.setOnMouseClicked(event -> {
             int pos = editor.getCaretPosition();
-            for(KeywordRange kr : keywordRanges){
-                if(pos >= kr.start && pos <= kr.end){
-                    showKeywordAlert(kr.keyword);
+            for (KeywordRange kr : keywordRanges) {
+                if (pos >= kr.start && pos < kr.end) {
+                    String[] parts = kr.keyword.split("\\|\\|");
+                    String keyword = parts[0];
+                    int linkedNoteId = Integer.parseInt(parts[1]);
+
+                    // get the linked note from the graph
+                    Note linkedNote = graphController.getGraph().getGraphNodes()
+                            .keySet()
+                            .stream()
+                            .filter(n -> n.getId() == linkedNoteId)
+                            .findFirst()
+                            .orElse(null);
+
+                    if (linkedNote != null) {
+                        // directly load note into editor
+                        loadNoteInEditor(linkedNote, true);
+                    }
                     break;
                 }
             }
         });
 
+        // Mouse move handler for changing cursor over links
+        editor.setOnMouseMoved(event -> {
+            int pos = editor.hit(event.getX(), event.getY()).getInsertionIndex(); // char under mouse
+            boolean overLink = false;
 
+            for (KeywordRange kr : keywordRanges) {
+                if (pos >= kr.start && pos < kr.end) {
+                    overLink = true;
+                    break;
+                }
+            }
 
+            if (overLink) {
+                editor.setCursor(javafx.scene.Cursor.HAND);
+            } else {
+                editor.setCursor(javafx.scene.Cursor.TEXT);
+            }
+        });
+
+        Platform.runLater(() -> {
+            try {
+                graphController.buildGraphFromDb(false); // build graph without resetting
+                System.out.println("Graph built with " + graphController.getGraph().getGraphNodes().size() + " nodes.");
+            } catch (SQLException e) {
+                showError("Graph Initialization Failed", e.getMessage());
+                e.printStackTrace();
+            }
+        });
     }
 
-    private void showKeywordAlert(String keyword){
+    private void showKeywordAlert(String noteTitle, String keyword){
         Alert alert = new Alert(Alert.AlertType.INFORMATION,
-                "NoteID: " + currentNote.getId() + "\nKeyword: " + keyword,
+                "Note Title: " + noteTitle + "\nKeyword: " + keyword,
                 ButtonType.OK);
         alert.setHeaderText("Keyword Clicked");
         alert.showAndWait();
@@ -147,24 +190,36 @@ public class NotepadController {
 
     @FXML
     public void onOpen() {
-        if(!confirmLoseChanges()) return;
+        if (!confirmLoseChanges()) return;
+
+        // Push current note to history for backtracking
+        if (currentNote != null) {
+            history.push(currentNote);  // just the Note object now
+        }
+
         FileChooser fc = new FileChooser();
-        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("MindGraph XML","*.xml"));
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("MindGraph XML", "*.xml"));
         File f = fc.showOpenDialog(editor.getScene().getWindow());
-        if(f != null){
+
+        if (f != null) {
             try {
                 Note n = noteDao.findByFilePath(f.getAbsolutePath());
                 if (n == null) n = new Note();
+
                 NoteXmlUtil.load(n, editor, f);
+
                 currentNote = n;
                 currentFile = f;
+
                 lblTitle.setText(n.getTitle());
                 txtTitle.setText(n.getTitle());
                 cmbDifficulty.getSelectionModel().select(String.valueOf(n.getDifficulty()));
+
                 keywordRanges.clear();
                 markKeywords();
                 clearDirty();
-            } catch(Exception ex){
+
+            } catch (Exception ex) {
                 showError("Open failed", ex.getMessage());
                 ex.printStackTrace();
             }
@@ -175,51 +230,85 @@ public class NotepadController {
     @FXML
     public void onSave() {
         try {
-            if(currentNote == null) currentNote = new Note();
+            if (currentNote == null) currentNote = new Note();
+
             File f = currentFile;
-            if(f == null){
+            if (f == null) {
                 FileChooser fc = new FileChooser();
-                fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("MindGraph XML","*.xml"));
+                fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("MindGraph XML", "*.xml"));
                 f = fc.showSaveDialog(editor.getScene().getWindow());
-                if(f == null) return;
+                if (f == null) return;
                 currentFile = f;
             }
+
             currentNote.setTitle(txtTitle.getText());
             currentNote.setDifficulty(parseDifficulty());
-            if(currentNote.getCreatedAt() == null) currentNote.setCreatedAt(LocalDateTime.now());
+            if (currentNote.getCreatedAt() == null) currentNote.setCreatedAt(LocalDateTime.now());
             currentNote.setUpdatedAt(LocalDateTime.now());
 
+            // --- Keyword extraction & selection ---
             List<String> extractedKeywords = KeywordExtractor.extractKeywords(editor.getText());
             List<String> selectedKeywords = showKeywordSelectionDialog(extractedKeywords);
-            if(selectedKeywords == null) selectedKeywords = List.of();
+            if (selectedKeywords == null) selectedKeywords = List.of();
             currentNote.setKeywords(selectedKeywords);
 
+            // --- Save note ---
             NoteXmlUtil.save(currentNote, editor, f);
             noteDao.upsert(currentNote, f.getAbsolutePath());
 
-            // Refresh editor
+            // --- Refresh editor ---
             NoteXmlUtil.load(currentNote, editor, f);
             keywordRanges.clear();
             markKeywords();
 
             lblTitle.setText(txtTitle.getText());
             clearDirty();
-        } catch(Exception ex){
+
+            // --- Update the graph ---
+            try {
+                graphController.buildGraphFromDb(true); // rebuild entire graph
+            } catch (SQLException e) {
+                showError("Graph Update Failed", e.getMessage());
+                e.printStackTrace();
+            }
+
+        } catch (Exception ex) {
             showError("Save failed", ex.getMessage());
             ex.printStackTrace();
         }
     }
 
     private void markKeywords() {
+        keywordRanges.clear();
+        if (currentNote == null) return;
+
         String content = editor.getText();
-        for(String kw : currentNote.getKeywords()){
-            int index = 0;
-            while((index = content.indexOf(kw, index)) >= 0){
-                keywordRanges.add(new KeywordRange(index, index + kw.length(), kw));
-                // Only valid CSS
-                editor.setStyle(index, index + kw.length(), mergeStyle(editor.getStyleOfChar(index),
-                        "-fx-fill: blue; -fx-underline: true;"));
-                index += kw.length();
+
+        // Get neighbors of the current note
+        List<Note> neighbors = graphController.getGraph().getNeighbours(currentNote);
+        if (neighbors == null || neighbors.isEmpty()) return;
+
+        for (Note neighbor : neighbors) {
+            String neighborTitle = neighbor.getTitle();
+            if (neighborTitle == null || neighborTitle.isBlank()) continue;
+
+            // Regex for case-insensitive + optional plural ('s' or 'es')
+            String regex = "\\b" + neighborTitle + "(?:s|es)?\\b";
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(regex, java.util.regex.Pattern.CASE_INSENSITIVE);
+            java.util.regex.Matcher matcher = pattern.matcher(content);
+
+            while (matcher.find()) {
+                int start = matcher.start();
+                int end = matcher.end();
+
+                // Add to keywordRanges with noteId
+                keywordRanges.add(new KeywordRange(start, end, neighborTitle + "||" + neighbor.getId()));
+
+                // Apply link style
+                editor.setStyle(start, end, mergeStyle(
+                        editor.getStyleOfChar(start),
+                        "-fx-fill: blue; -fx-underline: true;"
+                ));
             }
         }
     }
@@ -276,11 +365,16 @@ public class NotepadController {
         try {
             Note note = new Note();
             NoteXmlUtil.load(note, editor, f);
-            currentFile = f;
-            lblTitle.setText(f.getName());
-            txtTitle.setText(f.getName());
 
-            history.push(new NoteEntry(note,f));  // add opened note with file name to Stack
+            currentNote = note;
+            currentFile = f;
+
+            lblTitle.setText(note.getTitle());
+            txtTitle.setText(note.getTitle());
+
+            // Push note to history for backtracking
+            history.push(note);
+
             clearDirty();
         } catch (Exception ex) {
             showError("Load failed", ex.getMessage());
@@ -421,12 +515,11 @@ public class NotepadController {
             return;
         }
 
-        NoteEntry prev = history.pop();  // go back one step
-        if (prev != null && prev.getFile() != null){
-            loadFile(prev.getFile());    // reload full file into editor
-        }
-        else {
-            showError("History error", "Previous note entry is invalid.");
+        // Pop previous note and load it
+        Note prevNote = history.pop();
+
+        if (prevNote != null) {
+            loadNoteInEditor(prevNote, false); // false = don’t push to history again
         }
     }
 
@@ -435,6 +528,37 @@ public class NotepadController {
         if(currentFile!=null){
             loadFile(currentFile);  // later replace with stack.peek()/push
         }
+    }
+
+    private void loadNoteInEditor(Note note, boolean pushToHistory) {
+        if (note == null) return;
+
+        if (pushToHistory && currentNote != null) {
+            history.push(currentNote); // only push when explicitly loading new note
+        }
+
+        currentNote = note;
+        currentFile = (note.getFilePath() != null && !note.getFilePath().isBlank())
+                ? new File(note.getFilePath())
+                : null;
+
+        if (currentFile != null && currentFile.exists()) {
+            try {
+                NoteXmlUtil.load(note, editor, currentFile);
+            } catch (Exception e) {
+                showError("Load Failed", e.getMessage());
+            }
+        } else {
+            editor.clear();
+        }
+
+        lblTitle.setText(note.getTitle());
+        txtTitle.setText(note.getTitle());
+        cmbDifficulty.getSelectionModel().select(String.valueOf(note.getDifficulty()));
+
+        keywordRanges.clear();
+        markKeywords();
+        clearDirty();
     }
 
 }

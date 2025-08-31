@@ -59,6 +59,12 @@
                 <ComboBox fx:id="cmbSessionHistory" promptText="Session History" prefWidth="180" editable="true"/>
                 <Button text="Load" onAction="#onLoadHistory"/>
 
+                <ComboBox fx:id="cmbStudyPlan" promptText="Study Plan" prefWidth="180" editable="false"/>
+                <Button text="Add to Plan" onAction="#onAddToStudyPlan"/>
+                <Button text="Remove from Plan" onAction="#onRemoveFromStudyPlan"/>
+
+
+
 
                 <Separator orientation="VERTICAL"/>
 

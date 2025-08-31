@@ -2,6 +2,8 @@ package org.mindgraph.controller;
 
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.collections.transformation.FilteredList;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
@@ -44,6 +46,14 @@ public class NotepadController {
     @FXML private ComboBox<String> cmbDifficulty;
     @FXML private ComboBox<String> cmbMode;
     @FXML private Button btnAddImage, btnFind, btnRep;
+    @FXML private ComboBox<Note> cmbSessionHistory;
+
+    private ObservableList<Note> sessionHistoryList = FXCollections.observableArrayList();
+    private FilteredList<Note> filteredSessionList;
+    ;
+    @FXML private ComboBox<String> cmbSessionSort;
+
+
 
     private InlineCssTextArea editor;
     private boolean dirty = false;
@@ -121,6 +131,35 @@ public class NotepadController {
         });
 
 
+        loadSessionHistoryFromDB();
+
+        // Make ComboBox editable
+        cmbSessionHistory.setEditable(true);
+
+// Wrap items in FilteredList
+        filteredSessionList = new FilteredList<>(sessionHistoryList, p -> true);
+        cmbSessionHistory.setItems(filteredSessionList);
+
+// Filter when user types in ComboBox editor
+        cmbSessionHistory.getEditor().textProperty().addListener((obs, oldVal, newVal) -> {
+            String filter = newVal.toLowerCase();
+            filteredSessionList.setPredicate(note -> {
+                if (note == null) return false;
+                return note.getTitle().toLowerCase().contains(filter);
+            });
+
+            // Keep showing dropdown while typing
+            if (!cmbSessionHistory.isShowing()) {
+                cmbSessionHistory.show();
+            }
+        });
+
+        cmbSessionSort.setItems(FXCollections.observableArrayList("Newest","Oldest","MostUsed"));
+        cmbSessionSort.getSelectionModel().select("Newest");
+
+        cmbSessionSort.valueProperty().addListener((obs, oldVal, newVal) -> loadSessionHistoryFromDB());
+
+
 
     }
 
@@ -164,6 +203,15 @@ public class NotepadController {
                 keywordRanges.clear();
                 markKeywords();
                 clearDirty();
+                updateSession(currentNote);
+
+                noteDao.updateSession(currentNote);
+                updateSession(currentNote); // optional, updates title/difficulty
+
+                noteDao.incrementUsageCount(currentNote.getId());
+
+
+
             } catch(Exception ex){
                 showError("Open failed", ex.getMessage());
                 ex.printStackTrace();
@@ -204,10 +252,14 @@ public class NotepadController {
 
             lblTitle.setText(txtTitle.getText());
             clearDirty();
+
+            updateSession(currentNote);
+
         } catch(Exception ex){
             showError("Save failed", ex.getMessage());
             ex.printStackTrace();
         }
+
     }
 
     private void markKeywords() {
@@ -277,15 +329,24 @@ public class NotepadController {
             Note note = new Note();
             NoteXmlUtil.load(note, editor, f);
             currentFile = f;
+            currentNote = note;
+
             lblTitle.setText(f.getName());
             txtTitle.setText(f.getName());
 
             history.push(new NoteEntry(note,f));  // add opened note with file name to Stack
             clearDirty();
+
+            history.push(new NoteEntry(note,f));
+            saveSession(note); // record session
+            noteDao.incrementUsageCount(currentNote.getId());
+
         } catch (Exception ex) {
             showError("Load failed", ex.getMessage());
             ex.printStackTrace();
         }
+
+
     }
 
 
@@ -436,6 +497,79 @@ public class NotepadController {
             loadFile(currentFile);  // later replace with stack.peek()/push
         }
     }
+
+    private void loadSessionHistoryFromDB() {
+        String sortMode = cmbSessionSort.getValue(); // get selected sort mode
+        if(sortMode == null) sortMode = "Newest";
+
+        try {
+            List<Note> historyNotes = noteDao.getSessionHistory(sortMode);
+            sessionHistoryList.setAll(historyNotes);
+
+            // Update ComboBox display
+            cmbSessionHistory.setCellFactory(lv -> new ListCell<>() {
+                @Override
+                protected void updateItem(Note item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty || item == null ? null : item.getTitle());
+                }
+            });
+            cmbSessionHistory.setButtonCell(new ListCell<>() {
+                @Override
+                protected void updateItem(Note item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty || item == null ? null : item.getTitle());
+                }
+            });
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+
+
+    @FXML
+    private void onLoadHistory() {
+        Note selected = cmbSessionHistory.getSelectionModel().getSelectedItem();
+        if (selected != null) {
+            try {
+                File f = new File(selected.getFilePath());
+                if(f.exists()){
+                    loadFile(f); // use existing loadFile() method
+
+                    noteDao.incrementUsageCount(currentNote.getId());
+                } else {
+                    showError("File not found", "The note file does not exist on disk.");
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private void saveSession(Note note) {
+        try {
+            noteDao.saveSession(note); // define in NoteDao
+            loadSessionHistoryFromDB(); // refresh dropdown
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void updateSession(Note note) {
+        try {
+            noteDao.updateSession(note);
+            loadSessionHistoryFromDB();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+
+
+
 
 }
 

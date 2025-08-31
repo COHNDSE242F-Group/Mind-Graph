@@ -6,6 +6,7 @@ import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
+import javafx.geometry.Bounds;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyCodeCombination;
@@ -14,6 +15,7 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
+import javafx.stage.Popup;
 import org.fxmisc.richtext.InlineCssTextArea;
 import org.mindgraph.db.NoteDao;
 import org.mindgraph.model.Note;
@@ -22,7 +24,10 @@ import org.mindgraph.model.NoteEntry;
 import org.mindgraph.util.NoteXmlUtil;
 import org.mindgraph.datastructure.Stack;
 import org.mindgraph.model.Note;
-
+import javafx.geometry.Bounds;
+import javafx.scene.control.ListView;
+import javafx.scene.control.PopupControl;
+import javafx.scene.input.MouseEvent;
 import java.io.File;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -49,7 +54,10 @@ public class NotepadController {
     @FXML private Button btnAddImage, btnFind, btnRep;
     @FXML private ComboBox<Note> cmbSessionHistory;
 
+
     private ObservableList<Note> sessionHistoryList = FXCollections.observableArrayList();
+    private ListView<Note> suggestionListView = new ListView<>();
+    private Popup suggestionPopup = new Popup(); //
     ;
     @FXML private ComboBox<String> cmbSessionSort;
     // --- Add ComboBox in your FXML and Controller ---
@@ -141,40 +149,44 @@ public class NotepadController {
 
 
         loadSessionHistoryFromDB();
-
-        // In initialize() method, replace the FilteredList code:
+        // Remove all FilteredList related code and replace with:
         cmbSessionHistory.setEditable(true);
         cmbSessionHistory.setItems(sessionHistoryList);
 
-// Use a custom filtering approach instead of FilteredList
+
+
+        // Setup suggestion popup
+        setupSuggestionPopup();
+
+        // Add listener to editor text changes
         cmbSessionHistory.getEditor().textProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal == null || newVal.isEmpty()) {
-                cmbSessionHistory.setItems(sessionHistoryList);
-                return;
-            }
-
-            String filter = newVal.toLowerCase();
-            ObservableList<Note> filtered = sessionHistoryList.filtered(note ->
-                    note != null && note.getTitle().toLowerCase().contains(filter)
-            );
-
-            cmbSessionHistory.setItems(filtered);
-            // Show dropdown if there are filtered items
-            if (!filtered.isEmpty() && !cmbSessionHistory.isShowing()) {
-                Platform.runLater(() -> {
-                    cmbSessionHistory.show();
-                });
-            }
+            filterAndShowSuggestions(newVal);
         });
 
-// Add focus listener to reset the list when focus is lost
+        // Hide popup when focus lost
         cmbSessionHistory.focusedProperty().addListener((obs, oldVal, newVal) -> {
             if (!newVal) {
-                Platform.runLater(() -> {
-                    cmbSessionHistory.setItems(sessionHistoryList);
-                });
+                suggestionPopup.hide();
             }
         });
+// Make ComboBox display Note titles
+        cmbSessionHistory.setCellFactory(lv -> new ListCell<Note>() {
+            @Override
+            protected void updateItem(Note item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.getTitle());
+            }
+        });
+
+// Set button cell so the selected item shows title
+        cmbSessionHistory.setButtonCell(new ListCell<Note>() {
+            @Override
+            protected void updateItem(Note item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(" ");
+            }
+        });
+
 
         cmbSessionSort.setItems(FXCollections.observableArrayList("Newest","Oldest","MostUsed"));
         cmbSessionSort.getSelectionModel().select("Newest");
@@ -182,32 +194,32 @@ public class NotepadController {
         cmbSessionSort.valueProperty().addListener((obs, oldVal, newVal) -> loadSessionHistoryFromDB());
         // Load Study Plan
         cmbStudyPlan.setItems(FXCollections.observableArrayList(studyPlanManager.getPlan()));
-        // Update the cell factory setup in initialize()
-        cmbSessionHistory.setCellFactory(lv -> new ListCell<Note>() {
+        // In initialize() method, after loading study plan:
+        cmbStudyPlan.setCellFactory(lv -> new ListCell<Note>() {
             @Override
             protected void updateItem(Note item, boolean empty) {
                 super.updateItem(item, empty);
-                if (empty || item == null) {
-                    setText(null);
-                    setGraphic(null);
-                } else {
-                    setText(item.getTitle());
-                }
+                setText(empty || item == null ? null : item.getTitle());
             }
         });
 
-        cmbSessionHistory.setButtonCell(new ListCell<Note>() {
+        cmbStudyPlan.setButtonCell(new ListCell<Note>() {
             @Override
             protected void updateItem(Note item, boolean empty) {
                 super.updateItem(item, empty);
-                if (empty || item == null) {
-                    setText(null);
-                } else {
-                    setText(item.getTitle());
-                }
+                setText(empty || item == null ? null : item.getTitle());
             }
         });
-
+// Add keyboard support for the combobox editor
+        cmbSessionHistory.getEditor().setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.ENTER) {
+                onLoadHistory();
+                event.consume();
+            } else if (event.getCode() == KeyCode.ESCAPE) {
+                suggestionPopup.hide();
+                event.consume();
+            }
+        });
 
 
     }
@@ -258,7 +270,7 @@ public class NotepadController {
                 updateSession(currentNote); // optional, updates title/difficulty
 
                 noteDao.incrementUsageCount(currentNote.getId());
-
+                loadSessionHistoryFromDB();
 
 
             } catch(Exception ex){
@@ -301,6 +313,9 @@ public class NotepadController {
 
             lblTitle.setText(txtTitle.getText());
             clearDirty();
+
+            currentNote.setFilePath(f.getAbsolutePath()); // ensure path is saved
+            noteDao.upsert(currentNote, f.getAbsolutePath());
 
             updateSession(currentNote);
 
@@ -389,7 +404,7 @@ public class NotepadController {
             history.push(new NoteEntry(note,f));
             saveSession(note); // record session
             noteDao.incrementUsageCount(currentNote.getId());
-
+            loadSessionHistoryFromDB();
         } catch (Exception ex) {
             showError("Load failed", ex.getMessage());
             ex.printStackTrace();
@@ -569,27 +584,40 @@ public class NotepadController {
 
     @FXML
     private void onLoadHistory() {
-        Note selected = null;
+        Object selected = cmbSessionHistory.getValue();
 
-        // First try to get selected item from dropdown
-        selected = cmbSessionHistory.getSelectionModel().getSelectedItem();
+        Note note = null;
 
-        // If nothing selected, try to find by editor text
-        if (selected == null) {
-            String searchText = cmbSessionHistory.getEditor().getText();
-            if (searchText != null && !searchText.trim().isEmpty()) {
-                selected = sessionHistoryList.stream()
-                        .filter(note -> note != null && note.getTitle().equalsIgnoreCase(searchText.trim()))
+        if (selected instanceof Note) {
+            note = (Note) selected;
+        } else if (selected instanceof String) {
+            String searchText = (String) selected;
+            note = sessionHistoryList.stream()
+                    .filter(n -> n != null && n.getTitle().equalsIgnoreCase(searchText.trim()))
+                    .findFirst()
+                    .orElse(null);
+        }
+
+        if (note == null) {
+            // Try from editor text
+            String editorText = cmbSessionHistory.getEditor().getText();
+            if (editorText != null && !editorText.trim().isEmpty()) {
+                note = sessionHistoryList.stream()
+                        .filter(n -> n != null && n.getTitle().equalsIgnoreCase(editorText.trim()))
                         .findFirst()
                         .orElse(null);
             }
         }
 
-        if (selected == null) {
-            showError("No Selection", "Please select a note from the history list.");
+        if (note == null) {
+            showError("No Selection", "Please select a valid note from the history list.");
             return;
         }
 
+        loadSelectedNote(note);
+    }
+
+    private void loadSelectedNote(Note selected) {
         File f = new File(selected.getFilePath());
         if (!f.exists()) {
             showError("File not found", "The note file does not exist on disk.");
@@ -600,9 +628,8 @@ public class NotepadController {
             loadFile(f);
             noteDao.incrementUsageCount(selected.getId());
 
-            // Reset the combo box to show all items
+            // Clear the editor text after successful load
             Platform.runLater(() -> {
-                cmbSessionHistory.setItems(sessionHistoryList);
                 cmbSessionHistory.getEditor().clear();
             });
 
@@ -614,8 +641,6 @@ public class NotepadController {
             showError("Error", "Could not load note.");
         }
     }
-
-
     private void saveSession(Note note) {
         try {
             noteDao.saveSession(note); // define in NoteDao
@@ -633,6 +658,56 @@ public class NotepadController {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private void setupSuggestionPopup() {
+        suggestionListView.setCellFactory(lv -> new ListCell<Note>() {
+            @Override
+            protected void updateItem(Note item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.getTitle());
+            }
+        });
+
+        suggestionListView.setOnMouseClicked(event -> {
+            Note selected = suggestionListView.getSelectionModel().getSelectedItem();
+            if (selected != null) {
+                cmbSessionHistory.getSelectionModel().select(selected);
+                cmbSessionHistory.getEditor().clear();
+                suggestionPopup.hide();
+            }
+        });
+
+        suggestionPopup.getContent().add(suggestionListView);
+        suggestionPopup.setAutoHide(true);
+    }
+    private void filterAndShowSuggestions(String filterText) {
+        if (filterText == null || filterText.isEmpty()) {
+            suggestionPopup.hide();
+            return;
+        }
+
+        String filter = filterText.toLowerCase();
+        ObservableList<Note> filtered = sessionHistoryList.filtered(note ->
+                note != null && note.getTitle().toLowerCase().contains(filter)
+        );
+
+        if (filtered.isEmpty()) {
+            suggestionPopup.hide();
+            return;
+        }
+
+        suggestionListView.setItems(filtered);
+        suggestionListView.setPrefWidth(cmbSessionHistory.getWidth());
+
+        // Position the popup below the combobox
+        if (!suggestionPopup.isShowing()) {
+            Bounds bounds = cmbSessionHistory.localToScreen(cmbSessionHistory.getBoundsInLocal());
+            suggestionPopup.show(cmbSessionHistory.getScene().getWindow(),
+                    bounds.getMinX(), bounds.getMaxY());
+        }
+
+
     }
 
     @FXML

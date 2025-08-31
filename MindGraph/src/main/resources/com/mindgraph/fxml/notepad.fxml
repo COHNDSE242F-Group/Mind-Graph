@@ -53,6 +53,10 @@
                 <Button fx:id="btnSave" text="Save" onAction="#onSave"/>
                 <Button fx:id="btnPrev" text="&lt; Prev" onAction="#onPrev"/>
                 <Button fx:id="btnNext" text="Next &gt;" onAction="#onNext"/>
+                <!-- Inside your ToolBar, next to Prev/Next -->
+                <ComboBox fx:id="cmbSessionHistory" promptText="Session History" prefWidth="180"/>
+                <Button text="Load" onAction="#onLoadHistory"/>
+
 
                 <Separator orientation="VERTICAL"/>
 

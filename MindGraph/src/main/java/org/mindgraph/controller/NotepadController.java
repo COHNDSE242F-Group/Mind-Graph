@@ -44,6 +44,8 @@ public class NotepadController {
     @FXML private ComboBox<String> cmbDifficulty;
     @FXML private ComboBox<String> cmbMode;
     @FXML private Button btnAddImage, btnFind, btnRep;
+    @FXML private ComboBox<Note> cmbSessionHistory; // session history dropdown
+
 
     private InlineCssTextArea editor;
     private boolean dirty = false;
@@ -121,6 +123,7 @@ public class NotepadController {
         });
 
 
+        loadSessionHistoryFromDB();
 
     }
 
@@ -204,10 +207,15 @@ public class NotepadController {
 
             lblTitle.setText(txtTitle.getText());
             clearDirty();
+
+            noteDao.upsert(currentNote, f.getAbsolutePath());
+            saveSession(currentNote);
+
         } catch(Exception ex){
             showError("Save failed", ex.getMessage());
             ex.printStackTrace();
         }
+
     }
 
     private void markKeywords() {
@@ -277,15 +285,22 @@ public class NotepadController {
             Note note = new Note();
             NoteXmlUtil.load(note, editor, f);
             currentFile = f;
+            currentNote = note;
+
             lblTitle.setText(f.getName());
             txtTitle.setText(f.getName());
 
             history.push(new NoteEntry(note,f));  // add opened note with file name to Stack
             clearDirty();
+
+            history.push(new NoteEntry(note,f));
+            saveSession(note); // record session
         } catch (Exception ex) {
             showError("Load failed", ex.getMessage());
             ex.printStackTrace();
         }
+
+
     }
 
 
@@ -436,6 +451,61 @@ public class NotepadController {
             loadFile(currentFile);  // later replace with stack.peek()/push
         }
     }
+
+    private void loadSessionHistoryFromDB() {
+        try {
+            List<Note> historyNotes = noteDao.getSessionHistory(); // we’ll define this in NoteDao
+            cmbSessionHistory.getItems().clear();
+            cmbSessionHistory.getItems().addAll(historyNotes);
+
+            // Show title in dropdown
+            cmbSessionHistory.setCellFactory(lv -> new ListCell<>() {
+                @Override
+                protected void updateItem(Note item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty || item == null ? null : item.getTitle());
+                }
+            });
+            cmbSessionHistory.setButtonCell(new ListCell<>() {
+                @Override
+                protected void updateItem(Note item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty || item == null ? null : item.getTitle());
+                }
+            });
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    @FXML
+    private void onLoadHistory() {
+        Note selected = cmbSessionHistory.getSelectionModel().getSelectedItem();
+        if (selected != null) {
+            try {
+                File f = new File(selected.getFilePath());
+                if(f.exists()){
+                    loadFile(f); // use existing loadFile() method
+                } else {
+                    showError("File not found", "The note file does not exist on disk.");
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private void saveSession(Note note) {
+        try {
+            noteDao.saveSession(note); // define in NoteDao
+            loadSessionHistoryFromDB(); // refresh dropdown
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+
 
 }
 

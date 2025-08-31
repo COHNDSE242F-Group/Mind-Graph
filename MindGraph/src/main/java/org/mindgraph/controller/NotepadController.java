@@ -629,7 +629,6 @@ public class NotepadController {
                 loadSessionHistoryFromDB();
 
             } catch (Exception e) {
-
                 e.printStackTrace();
             }
         }

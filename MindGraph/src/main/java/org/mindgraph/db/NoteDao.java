@@ -171,5 +171,122 @@ public class NoteDao {
             }
         }
         return notes;
+
+
     }
+    public void createSessionTable() throws Exception {
+        String sql = """
+        CREATE TABLE IF NOT EXISTS SessionHistory (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        note_id TEXT NOT NULL,
+                        file_path TEXT NOT NULL,
+                        opened_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY(note_id) REFERENCES notes(id) ON DELETE CASCADE
+                      );
+                
+    """;
+
+        try (var conn = DriverManager.getConnection(url);
+             var stmt = conn.createStatement()) {
+            stmt.execute(sql);
+        }
+    }
+
+
+    public void saveSession(Note note) {
+        if(note.getId() == 0 || note.getFilePath() == null) return; // skip invalid notes
+
+        String sql = "INSERT INTO SessionHistory(note_id, file_path) VALUES(?, ?)";
+
+        try (var conn = DriverManager.getConnection(url);
+             var pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, String.valueOf(note.getId()));  // note_id as TEXT
+            pstmt.setString(2, note.getFilePath());            // file_path
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace(); // log errors
+        }
+    }
+
+    public void updateSession(Note note) {
+        String sql = "UPDATE SessionHistory SET opened_at = CURRENT_TIMESTAMP WHERE note_id = ?";
+
+        try (var conn = DriverManager.getConnection(url);
+             var pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, String.valueOf(note.getId()));
+            int rows = pstmt.executeUpdate();
+            if(rows == 0){
+                // If note not in session, insert new
+                saveSession(note);
+            }
+        } catch (SQLException e){
+            e.printStackTrace();
+        }
+    }
+
+
+
+
+    public List<Note> getSessionHistory(String sortMode) throws Exception {
+        List<Note> history = new ArrayList<>();
+        String orderBy;
+
+        switch(sortMode.toLowerCase()) {
+            case "oldest": orderBy = "s.opened_at ASC"; break;
+            case "mostused": orderBy = "s.usage_count DESC"; break; // you need a usage_count column
+            default: orderBy = "s.opened_at DESC"; // newest first
+        }
+
+        String sql = """
+    SELECT n.id, n.title, n.difficulty, n.created_at, n.updated_at, n.keywords, n.file_path
+    FROM SessionHistory s
+    JOIN notes n ON s.note_id = n.id
+    ORDER BY """ + " " + orderBy;
+
+
+        try (var conn = DriverManager.getConnection(url);
+             var stmt = conn.createStatement();
+             var rs = stmt.executeQuery(sql)) {
+
+            while (rs.next()) {
+                Note note = new Note(
+                        rs.getInt("id"),
+                        rs.getString("title"),
+                        rs.getInt("difficulty"),
+                        LocalDateTime.parse(rs.getString("created_at")),
+                        LocalDateTime.parse(rs.getString("updated_at")),
+                        Note.keywordsFromCsv(rs.getString("keywords"))
+                );
+                note.setFilePath(rs.getString("file_path"));
+                history.add(note);
+            }
+        }
+
+        return history;
+    }
+
+    public void incrementUsageCount(int noteId) throws SQLException {
+        String sql = "UPDATE SessionHistory SET usage_count = usage_count + 1 WHERE id = ?";
+
+        try (var conn = DriverManager.getConnection(url);
+             var pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, noteId);
+            int rows = pstmt.executeUpdate();
+            if(rows == 0){
+
+
+                // If note not in session, insert new
+               // saveSession(findById(noteId));
+            }
+        }
+    }
+
+
+
+
+
+
+
+
 }

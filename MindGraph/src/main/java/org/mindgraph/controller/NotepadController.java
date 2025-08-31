@@ -2,8 +2,11 @@ package org.mindgraph.controller;
 
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.collections.transformation.FilteredList;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
+import javafx.geometry.Bounds;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyCodeCombination;
@@ -12,6 +15,8 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
+import javafx.stage.Popup;
+import javafx.util.StringConverter;
 import org.fxmisc.richtext.InlineCssTextArea;
 import org.mindgraph.db.NoteDao;
 import org.mindgraph.model.Note;
@@ -20,6 +25,10 @@ import org.mindgraph.model.NoteEntry;
 import org.mindgraph.util.NoteXmlUtil;
 import org.mindgraph.datastructure.Stack;
 import org.mindgraph.model.Note;
+import javafx.geometry.Bounds;
+import javafx.scene.control.ListView;
+import javafx.scene.control.PopupControl;
+import javafx.scene.input.MouseEvent;
 import java.io.File;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -67,20 +76,40 @@ public class NotepadController {
     private Button btnPrev;
     @FXML
     private Button btnNext;
+    @FXML private ComboBox<Note> cmbSessionHistory;
+
+
+    private ObservableList<Note> sessionHistoryList = FXCollections.observableArrayList();
+    private ListView<Note> suggestionListView = new ListView<>();
+    private Popup suggestionPopup = new Popup(); //
+    private final ObservableList<Note> studyPlanList = FXCollections.observableArrayList();
+    ;
+    @FXML private ComboBox<String> cmbSessionSort;
+    // --- Add ComboBox in your FXML and Controller ---
+    @FXML
+    private ComboBox<Note> cmbStudyPlan;
+
+
 
     private InlineCssTextArea editor;
     private boolean dirty = false;
     private File currentFile = null;
     private Note currentNote = new Note();
+
     private static final String BOLD = "-fx-font-weight:bold;";
     private static final String ITALIC = "-fx-font-style:italic;";
     private static final String UNDERLINE = "-fx-underline:true;";
+
     private final NoteDao noteDao = new NoteDao("mindgraph.db");
 
-    private record KeywordRange(int start, int end, String keyword) {
-    }
-
+    private record KeywordRange(int start, int end, String keyword) {}
     private final List<KeywordRange> keywordRanges = new ArrayList<>();
+
+    // --- Add this field ---
+    private final StudyPlanController studyPlanManager = new StudyPlanController();
+
+
+
 
     @FXML
     public void initialize() {
@@ -91,21 +120,21 @@ public class NotepadController {
         revisionController = new RevisionController();
 
         cmbFontFamily.setItems(FXCollections.observableArrayList(
-                "System", "Arial", "Verdana", "Tahoma", "Times New Roman", "Courier New", "Georgia"));
+                "System","Arial","Verdana","Tahoma","Times New Roman","Courier New","Georgia"
+        ));
         cmbFontFamily.getSelectionModel().select("System");
 
-        cmbDifficulty.setItems(FXCollections.observableArrayList("1", "2", "3", "4", "5"));
+        cmbDifficulty.setItems(FXCollections.observableArrayList("1","2","3","4","5"));
         cmbDifficulty.getSelectionModel().select("1");
 
         cmbMode.setItems(FXCollections.observableArrayList(
-                "Concept Map", //Graph
-                "Backtrack Mode", //tack
-                "Revision", //Queue
-                "Session History" //Linked List
+                "Concept Map",
+                "Backtrack Mode",
+                "Revision",
+                "Session History"
         ));
-        cmbMode.getSelectionModel().selectFirst(); // default selection
+        cmbMode.getSelectionModel().selectFirst();
 
-        // Font size
         spinnerFont.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(8, 72, 14));
 
         editor.textProperty().addListener((obs, ov, nv) -> markDirty());
@@ -134,7 +163,6 @@ public class NotepadController {
         updateCounts();
         updateCaret();
 
-        // Handle clicks on keyword ranges
         editor.setOnMouseClicked(event -> {
             int pos = editor.getCaretPosition();
             for (KeywordRange kr : keywordRanges) {
@@ -143,7 +171,6 @@ public class NotepadController {
                     String keyword = parts[0];
                     int linkedNoteId = Integer.parseInt(parts[1]);
 
-                    // Get the linked note from the graph
                     Note linkedNote = graphController.getGraph().getGraphNodes()
                             .keySet()
                             .stream()
@@ -153,21 +180,14 @@ public class NotepadController {
 
                     if (linkedNote != null) {
                         if (inRevisionMode) {
-                            // --- Revision Mode Behavior ---
-                            // Push current queue note to back stack only if it's from the queue
                             if (currentQueueNote != null && currentQueueNote != linkedNote) {
                                 revisionBackStack.push(currentQueueNote);
                             }
-
-                            // Load the linked note
                             loadNoteInEditor(linkedNote, false);
-
-                            // Disable Next since user is now off the main queue path
                             btnNext.setDisable(true);
                             btnPrev.setDisable(false);
                         } else {
-                            // --- Normal Mode ---
-                            loadNoteInEditor(linkedNote, true); // push current note to history
+                            loadNoteInEditor(linkedNote, true);
                         }
                     }
                     break;
@@ -175,9 +195,8 @@ public class NotepadController {
             }
         });
 
-        // Mouse move handler for changing cursor over links
         editor.setOnMouseMoved(event -> {
-            int pos = editor.hit(event.getX(), event.getY()).getInsertionIndex(); // char under mouse
+            int pos = editor.hit(event.getX(), event.getY()).getInsertionIndex();
             boolean overLink = false;
             for (KeywordRange kr : keywordRanges) {
                 if (pos >= kr.start && pos < kr.end) {
@@ -185,16 +204,12 @@ public class NotepadController {
                     break;
                 }
             }
-            if (overLink) {
-                editor.setCursor(javafx.scene.Cursor.HAND);
-            } else {
-                editor.setCursor(javafx.scene.Cursor.TEXT);
-            }
+            editor.setCursor(overLink ? javafx.scene.Cursor.HAND : javafx.scene.Cursor.TEXT);
         });
 
         Platform.runLater(() -> {
             try {
-                graphController.buildGraphFromDb(false); // build graph without resetting
+                graphController.buildGraphFromDb(false);
                 System.out.println("Graph built with " + graphController.getGraph().getGraphNodes().size() + " nodes.");
             } catch (SQLException e) {
                 showError("Graph Initialization Failed", e.getMessage());
@@ -207,26 +222,110 @@ public class NotepadController {
                 inRevisionMode = true;
                 revisionBackStack.clear();
 
-                // Ensure revision controller exists
                 if (revisionController == null) {
                     revisionController = new RevisionController();
                 }
 
-                // Pass graph reference from graphController
                 if (graphController.getGraph() != null) {
                     revisionController.setGraph(graphController.getGraph());
                 }
 
-                // Prepare the queue if empty
+                loadSessionHistoryFromDB();
+                cmbSessionHistory.setEditable(true);
+                cmbSessionHistory.setItems(sessionHistoryList);
+
+                cmbSessionHistory.setCellFactory(lv -> new ListCell<Note>() {
+                    @Override
+                    protected void updateItem(Note item, boolean empty) {
+                        super.updateItem(item, empty);
+                        setText(empty || item == null ? null : item.getTitle());
+                    }
+                });
+
+                cmbSessionHistory.setButtonCell(new ListCell<Note>() {
+                    @Override
+                    protected void updateItem(Note item, boolean empty) {
+                        super.updateItem(item, empty);
+                        setText(empty || item == null ? "" : item.getTitle());
+                    }
+                });
+
+                setupSuggestionPopup();
+
+                cmbSessionHistory.getEditor().textProperty().addListener((obs2, oldVal, newVal) -> {
+                    filterAndShowSuggestions(newVal);
+                    Note match = sessionHistoryList.stream()
+                            .filter(n -> n.getTitle().equalsIgnoreCase(newVal))
+                            .findFirst()
+                            .orElse(null);
+                    cmbSessionHistory.setValue(match);
+                });
+
+                cmbSessionHistory.focusedProperty().addListener((obs3, oldVal, newVal) -> {
+                    if (!newVal) suggestionPopup.hide();
+                });
+
+                cmbSessionHistory.getEditor().setOnKeyPressed(event -> {
+                    if (event.getCode() == KeyCode.ENTER) {
+                        onLoadHistory();
+                        event.consume();
+                    } else if (event.getCode() == KeyCode.ESCAPE) {
+                        suggestionPopup.hide();
+                        event.consume();
+                    }
+                });
+
+                cmbSessionHistory.getSelectionModel().selectedItemProperty().addListener((obs4, oldVal, newVal) -> {
+                    if (newVal != null) {
+                        Platform.runLater(() -> cmbSessionHistory.getEditor().setText(newVal.getTitle()));
+                    } else {
+                        Platform.runLater(() -> cmbSessionHistory.getEditor().clear());
+                    }
+                });
+
+                cmbSessionHistory.setConverter(new StringConverter<Note>() {
+                    @Override
+                    public String toString(Note note) {
+                        return note == null ? "" : note.getTitle();
+                    }
+
+                    @Override
+                    public Note fromString(String string) {
+                        if (string == null || string.isBlank()) return null;
+                        return sessionHistoryList.stream()
+                                .filter(n -> n.getTitle().equalsIgnoreCase(string))
+                                .findFirst()
+                                .orElse(null);
+                    }
+                });
+
+                cmbSessionSort.setItems(FXCollections.observableArrayList("Newest","Oldest","MostUsed"));
+                cmbSessionSort.getSelectionModel().select("Newest");
+                cmbSessionSort.valueProperty().addListener((obs5, oldVal, newVal) -> loadSessionHistoryFromDB());
+
+                studyPlanList.setAll(studyPlanManager.getPlan()); // load initial items
+                cmbStudyPlan.setItems(studyPlanList); // bind ComboBox to observable list
+                cmbStudyPlan.setCellFactory(lv -> new ListCell<Note>() {
+                    @Override
+                    protected void updateItem(Note item, boolean empty) {
+                        super.updateItem(item, empty);
+                        setText(empty || item == null ? null : item.getTitle());
+                    }
+                });
+                cmbStudyPlan.setButtonCell(new ListCell<Note>() {
+                    @Override
+                    protected void updateItem(Note item, boolean empty) {
+                        super.updateItem(item, empty);
+                        setText(empty || item == null ? null : item.getTitle());
+                    }
+                });
+
                 revisionController.prepareNextNote();
-
-                // Load and dequeue the first note
                 currentQueueNote = revisionController.dequeueNextNote();
-
                 if (currentQueueNote != null) {
-                    loadNoteInEditor(currentQueueNote, false); // do NOT push to history
-                    btnPrev.setDisable(true);  // cannot go back yet
-                    btnNext.setDisable(!revisionController.hasNotes()); // disable if queue is empty
+                    loadNoteInEditor(currentQueueNote, false);
+                    btnPrev.setDisable(true);
+                    btnNext.setDisable(!revisionController.hasNotes());
                 } else {
                     showError("Revision Empty", "No notes available for revision.");
                     btnPrev.setDisable(true);
@@ -238,6 +337,24 @@ public class NotepadController {
                 btnPrev.setDisable(false);
                 btnNext.setDisable(false);
             }
+
+            studyPlanList.setAll(studyPlanManager.getPlan());
+            cmbStudyPlan.setItems(studyPlanList);
+
+            cmbStudyPlan.setCellFactory(lv -> new ListCell<Note>() {
+                @Override
+                protected void updateItem(Note item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty || item == null ? null : item.getTitle());
+                }
+            });
+            cmbStudyPlan.setButtonCell(new ListCell<Note>() {
+                @Override
+                protected void updateItem(Note item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty || item == null ? null : item.getTitle());
+                }
+            });
         });
     }
 
@@ -287,46 +404,64 @@ public class NotepadController {
                 markKeywords();
                 clearDirty();
             } catch (Exception ex) {
-                showError("Open failed", ex.getMessage());
-                ex.printStackTrace();
+                updateSession(currentNote);
+
+                noteDao.updateSession(currentNote);
+                updateSession(currentNote); // optional, updates title/difficulty
+
+                try {
+                    noteDao.incrementUsageCount(currentNote.getId());
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                    showError("Database Error", "Failed to increment usage count: " + e.getMessage());
+                }
+                loadSessionHistoryFromDB();
+
+
             }
         }
     }
 
+
     @FXML
     public void onSave() {
         try {
-            if (currentNote == null) currentNote = new Note();
+            if(currentNote == null) currentNote = new Note();
             File f = currentFile;
-            if (f == null) {
+            if(f == null){
                 FileChooser fc = new FileChooser();
-                fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("MindGraph XML", "*.xml"));
+                fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("MindGraph XML","*.xml"));
                 f = fc.showSaveDialog(editor.getScene().getWindow());
-                if (f == null) return;
+                if(f == null) return;
                 currentFile = f;
             }
-
             currentNote.setTitle(txtTitle.getText());
             currentNote.setDifficulty(parseDifficulty());
-            if (currentNote.getCreatedAt() == null) currentNote.setCreatedAt(LocalDateTime.now());
+            if(currentNote.getCreatedAt() == null) currentNote.setCreatedAt(LocalDateTime.now());
             currentNote.setUpdatedAt(LocalDateTime.now());
 
-            // --- Keyword extraction & selection ---
             List<String> extractedKeywords = KeywordExtractor.extractKeywords(editor.getText());
             List<String> selectedKeywords = showKeywordSelectionDialog(extractedKeywords);
-            if (selectedKeywords == null) selectedKeywords = List.of();
+            if(selectedKeywords == null) selectedKeywords = List.of();
             currentNote.setKeywords(selectedKeywords);
 
-            // --- Save note ---
             NoteXmlUtil.save(currentNote, editor, f);
             noteDao.upsert(currentNote, f.getAbsolutePath());
 
-            // --- Refresh editor ---
+            // Refresh editor
             NoteXmlUtil.load(currentNote, editor, f);
             keywordRanges.clear();
             markKeywords();
+
             lblTitle.setText(txtTitle.getText());
             clearDirty();
+
+            currentNote.setFilePath(f.getAbsolutePath()); // ensure path is saved
+            noteDao.upsert(currentNote, f.getAbsolutePath());
+
+            updateSession(currentNote);
+
+        } catch(Exception ex){
 
             // --- Update the graph ---
             try {
@@ -335,9 +470,6 @@ public class NotepadController {
                 showError("Graph Update Failed", e.getMessage());
                 e.printStackTrace();
             }
-        } catch (Exception ex) {
-            showError("Save failed", ex.getMessage());
-            ex.printStackTrace();
         }
     }
 
@@ -413,30 +545,13 @@ public class NotepadController {
             replaceDialog.setTitle("Replace Text");
             replaceDialog.setHeaderText("Replace with:");
             replaceDialog.setContentText("Replace:");
+
             replaceDialog.showAndWait().ifPresent(replaceText -> {
                 String content = editor.getText();
                 content = content.replace(findText, replaceText);
                 editor.replaceText(content);
             });
         });
-    }
-
-    private void loadFile(File f) {
-        try {
-            Note note = new Note();
-            NoteXmlUtil.load(note, editor, f);
-            currentNote = note;
-            currentFile = f;
-            lblTitle.setText(note.getTitle());
-            txtTitle.setText(note.getTitle());
-
-            // Push note to history for backtracking
-            history.push(note);
-            clearDirty();
-        } catch (Exception ex) {
-            showError("Load failed", ex.getMessage());
-            ex.printStackTrace();
-        }
     }
 
     // --- Styling helpers ---
@@ -663,6 +778,171 @@ public class NotepadController {
         }
     }
 
+    private void loadSessionHistoryFromDB() {
+        String sortMode = cmbSessionSort.getValue();
+        if (sortMode == null) sortMode = "Newest";
+
+        try {
+            List<Note> historyNotes = noteDao.getSessionHistory(sortMode);
+            sessionHistoryList.setAll(historyNotes);
+
+            // Always reset to show all items
+            cmbSessionHistory.setItems(sessionHistoryList);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            showError("Load Error", "Could not load session history: " + e.getMessage());
+        }
+    }
+
+
+
+
+    @FXML
+    private void onLoadHistory() {
+        Object selected = cmbSessionHistory.getValue();
+
+        Note note = null;
+
+        if (selected instanceof Note) {
+            note = (Note) selected;
+        } else if (selected instanceof String) {
+            String searchText = (String) selected;
+            note = sessionHistoryList.stream()
+                    .filter(n -> n != null && n.getTitle().equalsIgnoreCase(searchText.trim()))
+                    .findFirst()
+                    .orElse(null);
+        }
+
+        if (note == null) {
+            // Try from editor text
+            String editorText = cmbSessionHistory.getEditor().getText();
+            if (editorText != null && !editorText.trim().isEmpty()) {
+                note = sessionHistoryList.stream()
+                        .filter(n -> n != null && n.getTitle().equalsIgnoreCase(editorText.trim()))
+                        .findFirst()
+                        .orElse(null);
+            }
+        }
+
+        if (note == null) {
+            showError("No Selection", "Please select a valid note from the history list.");
+            return;
+        }
+
+        loadSelectedNote(note);
+    }
+
+    private void loadSelectedNote(Note selected) {
+        if (selected == null) return;
+
+        // Push current note to history for backtracking
+        if (currentNote != null) {
+            history.push(currentNote);
+        }
+
+        // Load the selected note directly
+        loadNoteInEditor(selected, false);
+
+        // Increment usage count safely
+        try {
+            noteDao.incrementUsageCount(selected.getId());
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+            showError("Database error", "Could not update usage count.");
+        }
+
+        // Clear the editor text after successful load in session history combo
+        Platform.runLater(() -> cmbSessionHistory.getEditor().clear());
+    }
+    private void saveSession(Note note) {
+        try {
+            noteDao.saveSession(note); // define in NoteDao
+            loadSessionHistoryFromDB(); // refresh dropdown
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void updateSession(Note note) {
+        try {
+            noteDao.updateSession(note);
+            loadSessionHistoryFromDB();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void setupSuggestionPopup() {
+        suggestionListView.setCellFactory(lv -> new ListCell<Note>() {
+            @Override
+            protected void updateItem(Note item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.getTitle());
+            }
+        });
+
+        suggestionListView.setOnMouseClicked(event -> {
+            Note selected = suggestionListView.getSelectionModel().getSelectedItem();
+            if (selected != null) {
+                cmbSessionHistory.getSelectionModel().select(selected);
+                suggestionPopup.hide();
+            }
+        });
+
+        suggestionPopup.getContent().add(suggestionListView);
+        suggestionPopup.setAutoHide(true);
+    }
+    private void filterAndShowSuggestions(String filterText) {
+        if (filterText == null || filterText.isEmpty()) {
+            suggestionPopup.hide();
+            return;
+        }
+
+        String filter = filterText.toLowerCase();
+        ObservableList<Note> filtered = sessionHistoryList.filtered(note ->
+                note != null && note.getTitle().toLowerCase().contains(filter)
+        );
+
+        if (filtered.isEmpty()) {
+            suggestionPopup.hide();
+            return;
+        }
+
+        suggestionListView.setItems(filtered);
+        suggestionListView.setPrefWidth(cmbSessionHistory.getWidth());
+
+        // Position the popup below the combobox
+        if (!suggestionPopup.isShowing()) {
+            Bounds bounds = cmbSessionHistory.localToScreen(cmbSessionHistory.getBoundsInLocal());
+            suggestionPopup.show(cmbSessionHistory.getScene().getWindow(),
+                    bounds.getMinX(), bounds.getMaxY());
+        }
+
+
+    }
+
+    @FXML
+    private void onAddToStudyPlan() {
+        if (currentNote != null && currentNote.getTitle() != null && !currentNote.getTitle().isBlank()) {
+            studyPlanManager.addNote(currentNote);
+            refreshStudyPlanCombo(); // update ComboBox
+        }
+    }
+
+    @FXML
+    private void onRemoveFromStudyPlan() {
+        Note selected = cmbStudyPlan.getSelectionModel().getSelectedItem();
+        if (selected != null) {
+            studyPlanManager.removeNote(selected);
+            refreshStudyPlanCombo(); // update ComboBox
+        }
+    }
+
+    private void refreshStudyPlanCombo() {
+        cmbStudyPlan.setItems(FXCollections.observableArrayList(studyPlanManager.getPlan()));
+    }
     private void loadNoteInEditor(Note note, boolean pushToHistory) {
         if (note == null) return;
 

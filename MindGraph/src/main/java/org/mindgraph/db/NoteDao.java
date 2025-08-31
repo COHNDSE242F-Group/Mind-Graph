@@ -266,24 +266,22 @@ public class NoteDao {
         return history;
     }
 
-    public void incrementUsageCount(int sessionId) {
+    public void incrementUsageCount(int noteId) throws SQLException {
         String sql = "UPDATE SessionHistory SET usage_count = usage_count + 1 WHERE id = ?";
 
         try (var conn = DriverManager.getConnection(url);
              var pstmt = conn.prepareStatement(sql)) {
-
-            pstmt.setInt(1, sessionId);
+            pstmt.setInt(1, noteId);
             int rows = pstmt.executeUpdate();
+            if(rows == 0){
 
-            if (rows == 0) {
-                // If session not found, insert a new record
-                //saveSession(sessionId);
+
+                // If note not in session, insert new
+               // saveSession(findById(noteId));
             }
-
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
     }
+
 
 
 

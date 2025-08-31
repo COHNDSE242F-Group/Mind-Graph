@@ -206,6 +206,11 @@ public class NotepadController {
                 updateSession(currentNote);
 
                 noteDao.updateSession(currentNote);
+                updateSession(currentNote); // optional, updates title/difficulty
+
+                noteDao.incrementUsageCount(currentNote.getId());
+
+
 
             } catch(Exception ex){
                 showError("Open failed", ex.getMessage());
@@ -334,6 +339,8 @@ public class NotepadController {
 
             history.push(new NoteEntry(note,f));
             saveSession(note); // record session
+            noteDao.incrementUsageCount(currentNote.getId());
+
         } catch (Exception ex) {
             showError("Load failed", ex.getMessage());
             ex.printStackTrace();
@@ -530,6 +537,8 @@ public class NotepadController {
                 File f = new File(selected.getFilePath());
                 if(f.exists()){
                     loadFile(f); // use existing loadFile() method
+
+                    noteDao.incrementUsageCount(currentNote.getId());
                 } else {
                     showError("File not found", "The note file does not exist on disk.");
                 }

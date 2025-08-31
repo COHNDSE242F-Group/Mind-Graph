@@ -2,6 +2,8 @@ package org.mindgraph.controller;
 
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.collections.transformation.FilteredList;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
@@ -46,6 +48,14 @@ public class NotepadController {
     @FXML private ComboBox<String> cmbDifficulty;
     @FXML private ComboBox<String> cmbMode;
     @FXML private Button btnAddImage, btnFind, btnRep;
+    @FXML private ComboBox<Note> cmbSessionHistory;
+
+    private ObservableList<Note> sessionHistoryList = FXCollections.observableArrayList();
+    private FilteredList<Note> filteredSessionList;
+    ;
+    @FXML private ComboBox<String> cmbSessionSort;
+
+
 
     private InlineCssTextArea editor;
     private boolean dirty = false;
@@ -276,6 +286,7 @@ public class NotepadController {
             showError("Save failed", ex.getMessage());
             ex.printStackTrace();
         }
+
     }
 
     private void markKeywords() {
@@ -380,6 +391,8 @@ public class NotepadController {
             showError("Load failed", ex.getMessage());
             ex.printStackTrace();
         }
+
+
     }
 
 
@@ -551,6 +564,74 @@ public class NotepadController {
         } else {
             editor.clear();
         }
+        private void loadSessionHistoryFromDB() {
+            String sortMode = cmbSessionSort.getValue(); // get selected sort mode
+            if(sortMode == null) sortMode = "Newest";
+
+            try {
+                List<Note> historyNotes = noteDao.getSessionHistory(sortMode);
+                sessionHistoryList.setAll(historyNotes);
+
+                // Update ComboBox display
+                cmbSessionHistory.setCellFactory(lv -> new ListCell<>() {
+                    @Override
+                    protected void updateItem(Note item, boolean empty) {
+                        super.updateItem(item, empty);
+                        setText(empty || item == null ? null : item.getTitle());
+                    }
+                });
+                cmbSessionHistory.setButtonCell(new ListCell<>() {
+                    @Override
+                    protected void updateItem(Note item, boolean empty) {
+                        super.updateItem(item, empty);
+                        setText(empty || item == null ? null : item.getTitle());
+                    }
+                });
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+
+
+        @FXML
+        private void onLoadHistory() {
+            Note selected = cmbSessionHistory.getSelectionModel().getSelectedItem();
+            if (selected != null) {
+                try {
+                    File f = new File(selected.getFilePath());
+                    if(f.exists()){
+                        loadFile(f); // use existing loadFile() method
+
+                        noteDao.incrementUsageCount(currentNote.getId());
+                    } else {
+                        showError("File not found", "The note file does not exist on disk.");
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+        private void saveSession(Note note) {
+            try {
+                noteDao.saveSession(note); // define in NoteDao
+                loadSessionHistoryFromDB(); // refresh dropdown
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        private void updateSession(Note note) {
+            try {
+                noteDao.updateSession(note);
+                loadSessionHistoryFromDB();
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
 
         lblTitle.setText(note.getTitle());
         txtTitle.setText(note.getTitle());
@@ -562,4 +643,3 @@ public class NotepadController {
     }
 
 }
-

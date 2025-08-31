@@ -1,14 +1,14 @@
 package org.mindgraph.datastructure;
 
-import org.mindgraph.model.NoteEntry;
+import org.mindgraph.model.Note;
 
 public class Stack {
 
-    private NoteEntry[] data;
+    private Note[] data;
     private int top;
 
     public Stack() {
-        data = new NoteEntry[300];
+        data = new Note[300]; // max 300 notes in history
         top = -1;
     }
 
@@ -20,15 +20,15 @@ public class Stack {
         return top == data.length - 1;
     }
 
-    public void push(NoteEntry entry) {
+    public void push(Note note) {
         if (!isFull()) {
-            data[++top] = entry;
+            data[++top] = note;
         } else {
-            System.out.println("Stack is full, cannot push: " + entry.getNote().getTitle());
+            System.out.println("Stack is full, cannot push: " + note.getTitle());
         }
     }
 
-    public NoteEntry pop() {
+    public Note pop() {
         if (!isEmpty()) {
             return data[top--];
         } else {
@@ -37,7 +37,7 @@ public class Stack {
         }
     }
 
-    public NoteEntry peek() {
+    public Note peek() {
         if (!isEmpty()) {
             return data[top];
         } else {
@@ -51,8 +51,9 @@ public class Stack {
             System.out.println("No previously viewed notes.");
         } else {
             for (int c = 0; c <= top; c++) {
-                System.out.println("Prev. viewed: " + data[c].getNote().getTitle());
+                System.out.println("Prev. viewed: " + data[c].getTitle());
             }
         }
     }
 }
+

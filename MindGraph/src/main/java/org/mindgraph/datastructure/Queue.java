@@ -1,70 +1,46 @@
 package org.mindgraph.datastructure;
 
-import org.mindgraph.model.Note;
+import java.io.Serial;
+import java.io.Serializable;
+import java.util.LinkedList;
 
+/**
+ * Simple FIFO queue for storing notes.
+ */
+public class Queue implements Serializable {
+    @Serial
+    private static final long serialVersionUID = 1L;
 
-public class Queue {
-    private final int MAX_SIZE = 100;
-    private Note[] queue;
-    private int front;
-    private int rear;
-    private int size;
+    private final LinkedList<Object> list;
 
-    // Constructor initialize the queue
     public Queue() {
-        queue = new Note[MAX_SIZE];
-        front = 0;
-        rear = -1;
-        size = 0;
+        list = new LinkedList<>();
     }
 
-
-     //Adds a note to the end of the queue
-
-    public void enqueue(Note note) {
-        if (size == MAX_SIZE) {
-            System.out.println("Queue is full");
-            return;
-        }
-        rear = (rear + 1) % MAX_SIZE;
-        queue[rear] = note;
-        size++;
+    public void enqueue(Object obj) {
+        if (obj == null) return;
+        list.addLast(obj);
     }
 
-    //Removes and returns the note at the front of the queue
-    public Note dequeue() {
-        if (size == 0) {
-            System.out.println("Queue is empty");
-            return null;
-        }
-        Note temp = queue[front];
-        front = (front + 1) % MAX_SIZE;
-        size--;
-        return temp;
+    public Object dequeue() {
+        if (list.isEmpty()) return null;
+        return list.removeFirst();
     }
 
-    //Returns the note at the front without removing it
-    public Note peek() {
-        if (size == 0) return null;
-        return queue[front];
+    public Object peek() {
+        if (list.isEmpty()) return null;
+        return list.getFirst();
     }
 
-    //Checks if the queue is empty.
     public boolean isEmpty() {
-        return size == 0;
+        return list.isEmpty();
     }
 
-
-     // Returns the current number of notes in the queue
-    public int getSize() {
-        return size;
-    }
-
-
-     //Clears the queue by resetting pointers and size
     public void clear() {
-        front = 0;
-        rear = -1;
-        size = 0;
+        list.clear();
+    }
+
+    public int size() {
+        return list.size();
     }
 }

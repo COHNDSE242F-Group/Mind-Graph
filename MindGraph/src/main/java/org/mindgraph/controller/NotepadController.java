@@ -16,6 +16,7 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
 import javafx.stage.Popup;
+import javafx.util.StringConverter;
 import org.fxmisc.richtext.InlineCssTextArea;
 import org.mindgraph.db.NoteDao;
 import org.mindgraph.model.Note;
@@ -155,20 +156,6 @@ public class NotepadController {
 
 
 
-        // Setup suggestion popup
-        setupSuggestionPopup();
-
-        // Add listener to editor text changes
-        cmbSessionHistory.getEditor().textProperty().addListener((obs, oldVal, newVal) -> {
-            filterAndShowSuggestions(newVal);
-        });
-
-        // Hide popup when focus lost
-        cmbSessionHistory.focusedProperty().addListener((obs, oldVal, newVal) -> {
-            if (!newVal) {
-                suggestionPopup.hide();
-            }
-        });
 // Make ComboBox display Note titles
         cmbSessionHistory.setCellFactory(lv -> new ListCell<Note>() {
             @Override
@@ -183,9 +170,69 @@ public class NotepadController {
             @Override
             protected void updateItem(Note item, boolean empty) {
                 super.updateItem(item, empty);
-                setText(" ");
+                setText(empty || item == null ? "" : item.getTitle());
             }
         });
+
+
+        // Setup suggestion popup
+        setupSuggestionPopup();
+
+        cmbSessionHistory.getEditor().textProperty().addListener((obs, oldVal, newVal) -> {
+            filterAndShowSuggestions(newVal);
+
+            // Avoid setting raw string as value
+            Note match = sessionHistoryList.stream()
+                    .filter(n -> n.getTitle().equalsIgnoreCase(newVal))
+                    .findFirst()
+                    .orElse(null);
+            if (match != null) {
+                cmbSessionHistory.setValue(match); // safe, it's a Note
+            } else {
+                cmbSessionHistory.setValue(null); // safe
+            }
+        });
+        // Hide popup when focus lost
+        cmbSessionHistory.focusedProperty().addListener((obs, oldVal, newVal) -> {
+            if (!newVal) {
+                suggestionPopup.hide();
+            }
+        });
+// Add keyboard support for the combobox editor
+        cmbSessionHistory.getEditor().setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.ENTER) {
+                onLoadHistory();
+                event.consume();
+            } else if (event.getCode() == KeyCode.ESCAPE) {
+                suggestionPopup.hide();
+                event.consume();
+            }
+        });
+
+        cmbSessionHistory.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null) {
+                Platform.runLater(() -> cmbSessionHistory.getEditor().setText(newVal.getTitle()));
+            } else {
+                Platform.runLater(() -> cmbSessionHistory.getEditor().clear());
+            }
+        });
+        cmbSessionHistory.setConverter(new StringConverter<Note>() {
+            @Override
+            public String toString(Note note) {
+                return note == null ? "" : note.getTitle();
+            }
+
+            @Override
+            public Note fromString(String string) {
+                if (string == null || string.isBlank()) return null;
+                // Return a matching Note from the list
+                return sessionHistoryList.stream()
+                        .filter(n -> n.getTitle().equalsIgnoreCase(string))
+                        .findFirst()
+                        .orElse(null);
+            }
+        });
+
 
 
         cmbSessionSort.setItems(FXCollections.observableArrayList("Newest","Oldest","MostUsed"));
@@ -210,16 +257,7 @@ public class NotepadController {
                 setText(empty || item == null ? null : item.getTitle());
             }
         });
-// Add keyboard support for the combobox editor
-        cmbSessionHistory.getEditor().setOnKeyPressed(event -> {
-            if (event.getCode() == KeyCode.ENTER) {
-                onLoadHistory();
-                event.consume();
-            } else if (event.getCode() == KeyCode.ESCAPE) {
-                suggestionPopup.hide();
-                event.consume();
-            }
-        });
+
 
 
     }
@@ -673,7 +711,6 @@ public class NotepadController {
             Note selected = suggestionListView.getSelectionModel().getSelectedItem();
             if (selected != null) {
                 cmbSessionHistory.getSelectionModel().select(selected);
-                cmbSessionHistory.getEditor().clear();
                 suggestionPopup.hide();
             }
         });

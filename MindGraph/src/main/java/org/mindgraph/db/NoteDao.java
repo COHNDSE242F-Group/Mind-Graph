@@ -171,5 +171,76 @@ public class NoteDao {
             }
         }
         return notes;
+
+
     }
+    public void createSessionTable() throws Exception {
+        String sql = """
+        CREATE TABLE IF NOT EXISTS SessionHistory (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        note_id TEXT NOT NULL,
+                        file_path TEXT NOT NULL,
+                        opened_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY(note_id) REFERENCES notes(id) ON DELETE CASCADE
+                      );
+                
+    """;
+
+        try (var conn = DriverManager.getConnection(url);
+             var stmt = conn.createStatement()) {
+            stmt.execute(sql);
+        }
+    }
+
+
+    public void saveSession(Note note) throws Exception {
+        String sql = "INSERT INTO SessionHistory(note_id, file_path) VALUES(?, ?)";
+
+
+        try (var conn = DriverManager.getConnection(url);
+             var pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setInt(1, note.getId());
+            pstmt.setString(2, note.getFilePath());
+
+            pstmt.executeUpdate();
+        }
+    }
+
+
+    public List<Note> getSessionHistory() throws Exception {
+        List<Note> history = new ArrayList<>();
+        String sql = """
+    SELECT n.id, n.title, n.difficulty, n.created_at, n.updated_at, n.keywords, n.file_path
+    FROM SessionHistory s
+    JOIN notes n ON s.note_id = n.id
+    ORDER BY s.opened_at DESC
+                
+""";
+
+
+        try (var conn = DriverManager.getConnection(url);
+             var stmt = conn.createStatement();
+             var rs = stmt.executeQuery(sql)) {
+
+            while (rs.next()) {
+                Note note = new Note(
+                        rs.getInt("id"),
+                        rs.getString("title"),
+                        rs.getInt("difficulty"),
+                        LocalDateTime.parse(rs.getString("created_at")),
+                        LocalDateTime.parse(rs.getString("updated_at")),
+                        Note.keywordsFromCsv(rs.getString("keywords"))
+                );
+                note.setFilePath(rs.getString("file_path"));
+                history.add(note);
+            }
+        }
+
+        return history;
+    }
+
+
+
+
 }

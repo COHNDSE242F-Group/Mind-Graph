@@ -22,6 +22,20 @@ public class DatabaseSetup {
                     );
                 """);
 
+
+                // Create session history table
+                s.execute("""
+                   CREATE TABLE IF NOT EXISTS SessionHistory (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                note_id TEXT NOT NULL,
+                                file_path TEXT NOT NULL,
+                                opened_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                                FOREIGN KEY(note_id) REFERENCES notes(id) ON DELETE CASCADE
+                              );
+                        
+                """);
+
+
                 // Migrations for older schemas
                 try { s.execute("ALTER TABLE notes ADD COLUMN file_path TEXT;"); }
                 catch (Exception ignore) { /* duplicate column name */ }

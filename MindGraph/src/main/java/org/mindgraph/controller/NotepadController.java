@@ -167,6 +167,9 @@ public class NotepadController {
                 keywordRanges.clear();
                 markKeywords();
                 clearDirty();
+                updateSession(currentNote);
+
+
             } catch(Exception ex){
                 showError("Open failed", ex.getMessage());
                 ex.printStackTrace();
@@ -208,8 +211,7 @@ public class NotepadController {
             lblTitle.setText(txtTitle.getText());
             clearDirty();
 
-            noteDao.upsert(currentNote, f.getAbsolutePath());
-            saveSession(currentNote);
+            updateSession(currentNote);
 
         } catch(Exception ex){
             showError("Save failed", ex.getMessage());
@@ -500,6 +502,16 @@ public class NotepadController {
         try {
             noteDao.saveSession(note); // define in NoteDao
             loadSessionHistoryFromDB(); // refresh dropdown
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void updateSession(Note note) {
+        try {
+            noteDao.updateSession(note);
+            loadSessionHistoryFromDB();
+
         } catch (Exception e) {
             e.printStackTrace();
         }

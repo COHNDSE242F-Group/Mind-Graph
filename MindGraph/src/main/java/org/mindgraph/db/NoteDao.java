@@ -193,19 +193,39 @@ public class NoteDao {
     }
 
 
-    public void saveSession(Note note) throws Exception {
-        String sql = "INSERT INTO SessionHistory(note_id, file_path) VALUES(?, ?)";
+    public void saveSession(Note note) {
+        if(note.getId() == 0 || note.getFilePath() == null) return; // skip invalid notes
 
+        String sql = "INSERT INTO SessionHistory(note_id, file_path) VALUES(?, ?)";
 
         try (var conn = DriverManager.getConnection(url);
              var pstmt = conn.prepareStatement(sql)) {
 
-            pstmt.setInt(1, note.getId());
-            pstmt.setString(2, note.getFilePath());
-
+            pstmt.setString(1, String.valueOf(note.getId()));  // note_id as TEXT
+            pstmt.setString(2, note.getFilePath());            // file_path
             pstmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace(); // log errors
         }
     }
+
+    public void updateSession(Note note) {
+        String sql = "UPDATE SessionHistory SET opened_at = CURRENT_TIMESTAMP WHERE note_id = ?";
+
+        try (var conn = DriverManager.getConnection(url);
+             var pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, String.valueOf(note.getId()));
+            int rows = pstmt.executeUpdate();
+            if(rows == 0){
+                // If note not in session, insert new
+                saveSession(note);
+            }
+        } catch (SQLException e){
+            e.printStackTrace();
+        }
+    }
+
+
 
 
     public List<Note> getSessionHistory() throws Exception {

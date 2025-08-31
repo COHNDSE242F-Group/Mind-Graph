@@ -2,6 +2,8 @@ package org.mindgraph.controller;
 
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.collections.transformation.FilteredList;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
@@ -44,7 +46,13 @@ public class NotepadController {
     @FXML private ComboBox<String> cmbDifficulty;
     @FXML private ComboBox<String> cmbMode;
     @FXML private Button btnAddImage, btnFind, btnRep;
-    @FXML private ComboBox<Note> cmbSessionHistory; // session history dropdown
+    @FXML private ComboBox<Note> cmbSessionHistory;
+
+    private ObservableList<Note> sessionHistoryList = FXCollections.observableArrayList();
+    private FilteredList<Note> filteredSessionList;
+    ;
+    @FXML private ComboBox<String> cmbSessionSort;
+
 
 
     private InlineCssTextArea editor;
@@ -125,6 +133,34 @@ public class NotepadController {
 
         loadSessionHistoryFromDB();
 
+        // Make ComboBox editable
+        cmbSessionHistory.setEditable(true);
+
+// Wrap items in FilteredList
+        filteredSessionList = new FilteredList<>(sessionHistoryList, p -> true);
+        cmbSessionHistory.setItems(filteredSessionList);
+
+// Filter when user types in ComboBox editor
+        cmbSessionHistory.getEditor().textProperty().addListener((obs, oldVal, newVal) -> {
+            String filter = newVal.toLowerCase();
+            filteredSessionList.setPredicate(note -> {
+                if (note == null) return false;
+                return note.getTitle().toLowerCase().contains(filter);
+            });
+
+            // Keep showing dropdown while typing
+            if (!cmbSessionHistory.isShowing()) {
+                cmbSessionHistory.show();
+            }
+        });
+
+        cmbSessionSort.setItems(FXCollections.observableArrayList("Newest","Oldest","MostUsed"));
+        cmbSessionSort.getSelectionModel().select("Newest");
+
+        cmbSessionSort.valueProperty().addListener((obs, oldVal, newVal) -> loadSessionHistoryFromDB());
+
+
+
     }
 
     private void showKeywordAlert(String keyword){
@@ -169,6 +205,7 @@ public class NotepadController {
                 clearDirty();
                 updateSession(currentNote);
 
+                noteDao.updateSession(currentNote);
 
             } catch(Exception ex){
                 showError("Open failed", ex.getMessage());
@@ -455,12 +492,14 @@ public class NotepadController {
     }
 
     private void loadSessionHistoryFromDB() {
-        try {
-            List<Note> historyNotes = noteDao.getSessionHistory(); // we’ll define this in NoteDao
-            cmbSessionHistory.getItems().clear();
-            cmbSessionHistory.getItems().addAll(historyNotes);
+        String sortMode = cmbSessionSort.getValue(); // get selected sort mode
+        if(sortMode == null) sortMode = "Newest";
 
-            // Show title in dropdown
+        try {
+            List<Note> historyNotes = noteDao.getSessionHistory(sortMode);
+            sessionHistoryList.setAll(historyNotes);
+
+            // Update ComboBox display
             cmbSessionHistory.setCellFactory(lv -> new ListCell<>() {
                 @Override
                 protected void updateItem(Note item, boolean empty) {
@@ -480,6 +519,8 @@ public class NotepadController {
             e.printStackTrace();
         }
     }
+
+
 
     @FXML
     private void onLoadHistory() {
@@ -516,6 +557,8 @@ public class NotepadController {
             e.printStackTrace();
         }
     }
+
+
 
 
 

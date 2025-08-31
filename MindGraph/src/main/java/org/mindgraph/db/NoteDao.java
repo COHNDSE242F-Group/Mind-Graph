@@ -228,15 +228,21 @@ public class NoteDao {
 
 
 
-    public List<Note> getSessionHistory() throws Exception {
+    public List<Note> getSessionHistory(String sortMode) throws Exception {
         List<Note> history = new ArrayList<>();
+        String orderBy;
+
+        switch(sortMode.toLowerCase()) {
+            case "oldest": orderBy = "s.opened_at ASC"; break;
+            case "mostused": orderBy = "s.usage_count DESC"; break; // you need a usage_count column
+            default: orderBy = "s.opened_at DESC"; // newest first
+        }
+
         String sql = """
     SELECT n.id, n.title, n.difficulty, n.created_at, n.updated_at, n.keywords, n.file_path
     FROM SessionHistory s
     JOIN notes n ON s.note_id = n.id
-    ORDER BY s.opened_at DESC
-                
-""";
+    ORDER BY """ + " " + orderBy;
 
 
         try (var conn = DriverManager.getConnection(url);
@@ -259,6 +265,28 @@ public class NoteDao {
 
         return history;
     }
+
+    public void incrementUsageCount(int sessionId) {
+        String sql = "UPDATE SessionHistory SET usage_count = usage_count + 1 WHERE id = ?";
+
+        try (var conn = DriverManager.getConnection(url);
+             var pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setInt(1, sessionId);
+            int rows = pstmt.executeUpdate();
+
+            if (rows == 0) {
+                // If session not found, insert a new record
+                //saveSession(sessionId);
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+
 
 
 

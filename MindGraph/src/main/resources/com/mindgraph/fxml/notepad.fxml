@@ -54,7 +54,9 @@
                 <Button fx:id="btnPrev" text="&lt; Prev" onAction="#onPrev"/>
                 <Button fx:id="btnNext" text="Next &gt;" onAction="#onNext"/>
                 <!-- Inside your ToolBar, next to Prev/Next -->
-                <ComboBox fx:id="cmbSessionHistory" promptText="Session History" prefWidth="180"/>
+
+                <ComboBox fx:id="cmbSessionSort" promptText="Sort by..." />
+                <ComboBox fx:id="cmbSessionHistory" promptText="Session History" prefWidth="180" editable="true"/>
                 <Button text="Load" onAction="#onLoadHistory"/>
 
 

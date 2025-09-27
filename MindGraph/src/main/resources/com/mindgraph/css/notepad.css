@@ -1,21 +1,21 @@
 .app-root {
   -fx-font-family: "Segoe UI", system-ui, sans-serif;
-  -fx-background-color: linear-gradient(to bottom, #f7f7f9, #f1f3f6);
+  -fx-background-color: linear-gradient(to bottom, #a7a6eb, #f1f3f6);
 }
 
 /* Toolbar */
 .topbar {
-  -fx-background-color: linear-gradient(to right, #ffffff, #f9fafb);
+  -fx-background-color: linear-gradient(to right, #a7a6eb, #cbcbf4);
   -fx-padding: 10 14;
   -fx-spacing: 10; /* space between buttons */
-  -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.08), 14, 0.15, 0, 2);
+  -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.15), 14, 0.2, 0, 2);
   -fx-background-radius: 12 12 0 0;
   -fx-alignment: center-left;
 }
 
 /* Status bar */
 .statusbar {
-  -fx-background-color: #ffffff;
+  -fx-background-color: #cbcbf4;
   -fx-padding: 8 12;
   -fx-border-color: #e6e8eb;
   -fx-border-width: 1 0 0 0;

@@ -59,9 +59,9 @@
                 <ComboBox fx:id="cmbSessionHistory" promptText="Session History" prefWidth="180" editable="true"/>
                 <Button text="Load" onAction="#onLoadHistory"/>
 
-                <ComboBox fx:id="cmbStudyPlan" promptText="Study Plan" prefWidth="180" editable="false"/>
-                <Button text="Add to Plan" onAction="#onAddToStudyPlan"/>
-                <Button text="Remove from Plan" onAction="#onRemoveFromStudyPlan"/>
+<!--                <ComboBox fx:id="cmbStudyPlan" promptText="Study Plan" prefWidth="180" editable="false"/>-->
+<!--                <Button text="Add to Plan" onAction="#onAddToStudyPlan"/>-->
+<!--                <Button text="Remove from Plan" onAction="#onRemoveFromStudyPlan"/>-->
 
 
 
@@ -91,6 +91,21 @@
         </VBox>
     </top>
 
+    <!-- Left side panel -->
+    <left>
+        <VBox fx:id="sidePanel" spacing="10" styleClass="side-panel" prefWidth="220">
+            <padding>
+                <Insets top="8" right="8" bottom="8" left="8"/>
+            </padding>
+
+            <!-- Add note button at top -->
+            <Button fx:id="btnAddNoteToPanel" text="+ Add Note"/>
+
+            <!-- Container for notes -->
+            <VBox fx:id="vboxNotes" spacing="5"/>
+        </VBox>
+    </left>
+
     <!-- Center editor -->
     <center>
         <ScrollPane fitToWidth="true" fitToHeight="true" BorderPane.alignment="CENTER">
@@ -100,16 +115,34 @@
 
     <!-- Bottom status bar -->
     <bottom>
-        <HBox spacing="16" alignment="CENTER_LEFT" styleClass="statusbar">
-            <padding>
-                <Insets top="8" right="8" bottom="8" left="8"/>
-            </padding>
+        <VBox spacing="0">
+            <HBox fx:id="toastContainer"
+                  alignment="CENTER_LEFT"
+                  visible="false"
+                  managed="false"
+                  style="-fx-padding: 4 10; -fx-background-color: transparent;">
+            </HBox>
 
-            <Label fx:id="lblTitle" text="Untitled"/>
-            <Pane HBox.hgrow="ALWAYS"/>
-            <Label fx:id="lblCursor" text="Ln 1, Col 1"/>
-            <Label fx:id="lblWords" text="Words: 0"/>
-            <Label fx:id="lblChars" text="Chars: 0"/>
-        </HBox>
+            <HBox spacing="16" alignment="CENTER_LEFT" styleClass="statusbar">
+                <padding>
+                    <Insets top="8" right="8" bottom="8" left="8"/>
+                </padding>
+
+                <!-- Left side info -->
+                <Label fx:id="lblTitle" text="Untitled"/>
+                <Pane HBox.hgrow="ALWAYS"/>
+
+                <!-- Middle info -->
+                <Label fx:id="lblCursor" text="Ln 1, Col 1"/>
+                <Label fx:id="lblWords" text="Words: 0"/>
+                <Label fx:id="lblChars" text="Chars: 0"/>
+
+                <Pane HBox.hgrow="ALWAYS"/>
+
+                <Label text="Last Studied:"/>
+                <Label fx:id="lblLastStudied" text="Never"/>
+                <Button fx:id="btnMarkStudied" text="Mark as Studied" onAction="#onMarkStudied"/>
+            </HBox>
+        </VBox>
     </bottom>
 </BorderPane>

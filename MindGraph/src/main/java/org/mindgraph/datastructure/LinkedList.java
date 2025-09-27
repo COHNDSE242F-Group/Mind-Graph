@@ -9,7 +9,7 @@ import java.util.NoSuchElementException;
  * Generic doubly-linked list with a movable Cursor for sequential navigation.
  * Big-O:
  *  - addFirst/addLast/removeFirst/removeLast: O(1)
- *  - get(index), remove(value by equals): O(n)
+ *  - get(index), remove(value by equals), insertAt(index): O(n)
  *  - iteration: O(n)
  */
 public class LinkedList<T> implements Iterable<T> {
@@ -46,6 +46,45 @@ public class LinkedList<T> implements Iterable<T> {
             tail = n;
         }
         size++;
+    }
+
+    /** Insert at a specific index (0-based). Appends if index >= size. */
+    public void insertAt(T item, int index) {
+        if (item == null) return;
+
+        if (index <= 0) {
+            addFirst(item);
+            return;
+        } else if (index >= size) {
+            addLast(item);
+            return;
+        }
+
+        Node<T> cur = head;
+        for (int i = 0; i < index; i++) cur = cur.next;
+
+        Node<T> n = new Node<>(item);
+        Node<T> prev = cur.prev;
+
+        prev.next = n;
+        n.prev = prev;
+
+        n.next = cur;
+        cur.prev = n;
+
+        size++;
+    }
+
+    /** Remove by index (0-based) */
+    public T removeAt(int index) {
+        if (index < 0 || index >= size) throw new IndexOutOfBoundsException(index);
+
+        Node<T> cur = head;
+        for (int i = 0; i < index; i++) cur = cur.next;
+
+        T val = cur.data;
+        unlink(cur);
+        return val;
     }
 
     public T removeFirst() {
@@ -108,17 +147,11 @@ public class LinkedList<T> implements Iterable<T> {
         return out;
     }
 
-    public Cursor cursorFromStart() {
-        return new Cursor(head);
-    }
-
-    public Cursor cursorFromEnd() {
-        return new Cursor(tail);
-    }
+    public Cursor cursorFromStart() { return new Cursor(head); }
+    public Cursor cursorFromEnd() { return new Cursor(tail); }
 
     public final class Cursor {
         private Node<T> current;
-
         private Cursor(Node<T> start) { this.current = start; }
 
         public T current() { return current == null ? null : current.data; }
@@ -136,6 +169,8 @@ public class LinkedList<T> implements Iterable<T> {
             current = current.next;
             return current.data;
         }
+
+        public Cursor cursorFromStart() { return new Cursor(head); }
     }
 
     @Override

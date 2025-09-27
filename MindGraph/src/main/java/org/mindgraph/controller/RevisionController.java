@@ -6,8 +6,7 @@ import org.mindgraph.datastructure.Queue;
 import org.mindgraph.model.Note;
 import org.mindgraph.util.NoteXmlUtil;
 
-import java.io.File;
-import java.io.Serializable;
+import java.io.*;
 import java.util.Comparator;
 import java.util.List;
 
@@ -18,36 +17,26 @@ public class RevisionController implements Serializable {
     private static final long serialVersionUID = 1L;
     private Queue revisionQueue;
     private Graph graph; // Reference to graph-based study path
-    private static final File PATH_FILE = new File("revisionPath.dat");
+    private static final File PATH_FILE = new File(System.getProperty("user.home") + "/revisionQueue.dat");
 
     public RevisionController() {
-        // Load saved queue or create new
+        // Load saved queue or create new empty queue
         revisionQueue = PATH_FILE.exists() ? loadSavedQueue(PATH_FILE) : new Queue();
         if (revisionQueue == null) revisionQueue = new Queue();
     }
 
-    public void setGraph(Graph graph) {
-        this.graph = graph;
-    }
-
-    /**
-     * Returns true if there are notes in the revision queue.
-     */
+    // Returns true if there are notes in the revision queue.
     public boolean hasNotes() {
         return revisionQueue != null && !revisionQueue.isEmpty();
     }
 
-    /**
-     * Peek at the next note without dequeuing.
-     */
+    // Peek at the next note without dequeuing.
     public Note peekNextNote() {
         if (!hasNotes()) return null;
         return (Note) revisionQueue.peek();
     }
 
-    /**
-     * Dequeue the next note from the revision queue.
-     */
+    // Dequeue the next note from the revision queue and save queue to disk.
     public Note dequeueNextNote() {
         if (!hasNotes()) return null;
         Note next = (Note) revisionQueue.dequeue();
@@ -55,72 +44,24 @@ public class RevisionController implements Serializable {
         return next;
     }
 
-    /**
-     * Add a note to the revision queue.
-     */
+    // Add a note to the revision queue and save to disk.
     public void enqueueNoteForRevision(Note note) {
         if (note == null || note.getFilePath() == null) return;
+
         if (revisionQueue == null) revisionQueue = new Queue();
         revisionQueue.enqueue(note);
         saveQueue(revisionQueue, PATH_FILE);
     }
 
-    /**
-     * Prepare the revision queue, either from the graph or fallback folder scan.
-     */
-    public void prepareNextNote() {
-        if (hasNotes()) return;
-        buildRevisionQueue();
+    // Clear the revision queue and remove saved file.
+    public void clearQueue() {
+        if (revisionQueue != null) revisionQueue.clear();
+        if (PATH_FILE.exists()) PATH_FILE.delete();
     }
 
-    // ---------------- Core Queue Builder ----------------
-    private void buildRevisionQueue() {
-        revisionQueue.clear();
-
-        // Use graph if available
-        if (graph != null && !graph.getGraphNodes().isEmpty()) {
-            Note startNote = graph.getGraphNodes().keySet().stream()
-                    .min(Comparator.comparingInt(Note::getDifficulty))
-                    .orElse(null);
-
-            if (startNote != null) {
-                List<Note> path = graph.getStudyPath(startNote);
-                for (Note note : path) revisionQueue.enqueue(note);
-            }
-        }
-
-        // Fallback: load from notes folder if empty
-        if (revisionQueue.isEmpty()) {
-            loadNotesFromFolder();
-        }
-
-        saveQueue(revisionQueue, PATH_FILE);
-    }
-
-    private void loadNotesFromFolder() {
-        File folder = new File("notes");
-        if (!folder.exists() || !folder.isDirectory()) return;
-
-        File[] files = folder.listFiles((dir, name) -> name.endsWith(".rnote"));
-        if (files == null) return;
-
-        InlineCssTextArea tempArea = new InlineCssTextArea();
-        for (File f : files) {
-            try {
-                Note note = new Note();
-                NoteXmlUtil.load(note, tempArea, f);
-                if (note.getDifficulty() >= 2 && note.getFilePath() != null) {
-                    revisionQueue.enqueue(note);
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
-    // ---------------- Serialization ----------------
+    // Serialization
     private void saveQueue(Queue queue, File file) {
-        try (var out = new java.io.ObjectOutputStream(new java.io.FileOutputStream(file))) {
+        try (ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(file))) {
             out.writeObject(queue);
         } catch (Exception e) {
             e.printStackTrace();
@@ -128,7 +69,7 @@ public class RevisionController implements Serializable {
     }
 
     private Queue loadSavedQueue(File file) {
-        try (var in = new java.io.ObjectInputStream(new java.io.FileInputStream(file))) {
+        try (ObjectInputStream in = new ObjectInputStream(new FileInputStream(file))) {
             return (Queue) in.readObject();
         } catch (Exception e) {
             e.printStackTrace();

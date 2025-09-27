@@ -18,6 +18,7 @@ public class Note implements Serializable {
     private LocalDateTime updatedAt;
     private List<String> keywords;
     private String filePath; // path to XML/HTML content
+    private LocalDateTime lastStudied;
 
     // Default constructor for a new note
     public Note() {
@@ -90,6 +91,10 @@ public class Note implements Serializable {
     public String getFilePath() { return filePath; }
     public void setFilePath(String filePath) { this.filePath = filePath; }
 
+    public LocalDateTime getLastStudied() { return lastStudied; }
+
+    public void setLastStudied(LocalDateTime lastStudied) { this.lastStudied = lastStudied; }
+
     // --- Keyword management helpers ---
     public void addKeyword(String keyword) {
         if (keyword != null && !keyword.isBlank() && !keywords.contains(keyword)) {
@@ -116,5 +121,14 @@ public class Note implements Serializable {
     @Override
     public int hashCode() {
         return Integer.hashCode(id);
+    }
+
+    public void markAsStudied() {
+        this.lastStudied = LocalDateTime.now();
+    }
+
+    // Check if this note has been studied at least once
+    public boolean hasBeenStudied() {
+        return lastStudied != null;
     }
 }

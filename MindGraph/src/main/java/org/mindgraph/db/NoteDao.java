@@ -33,9 +33,9 @@ public class NoteDao {
 
     private void insert(Note note, String filePath) throws SQLException {
         String sql = """
-                INSERT INTO notes(title, file_path, keywords, difficulty, created_at, updated_at)
-                VALUES(?,?,?,?,?,?)
-                """;
+            INSERT INTO notes(title, file_path, keywords, difficulty, created_at, updated_at, last_studied)
+            VALUES(?,?,?,?,?,?,?)
+            """;
 
         try (Connection c = connect();
              PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
@@ -46,6 +46,7 @@ public class NoteDao {
             ps.setInt(4, note.getDifficulty());
             ps.setString(5, note.getCreatedAt().toString());
             ps.setString(6, LocalDateTime.now().toString());
+            ps.setString(7, note.getLastStudied() != null ? note.getLastStudied().toString() : null);
 
             ps.executeUpdate();
 
@@ -64,7 +65,8 @@ public class NoteDao {
                     file_path = ?,
                     keywords = ?,
                     difficulty = ?,
-                    updated_at = ?
+                    updated_at = ?,
+                    last_studied = ?
                 WHERE id = ?
                 """;
 
@@ -76,7 +78,8 @@ public class NoteDao {
             ps.setString(3, note.keywordsAsCsv());
             ps.setInt(4, note.getDifficulty());
             ps.setString(5, LocalDateTime.now().toString());
-            ps.setInt(6, note.getId());
+            ps.setString(6, note.getLastStudied() != null ? note.getLastStudied().toString() : null);
+            ps.setInt(7, note.getId());
 
             ps.executeUpdate();
         }
@@ -103,6 +106,10 @@ public class NoteDao {
                         Note.keywordsFromCsv(rs.getString("keywords"))
                 );
                 note.setFilePath(rs.getString("file_path"));
+                String lastStudiedStr = rs.getString("last_studied");
+                if (lastStudiedStr != null && !lastStudiedStr.isBlank()) {
+                    note.setLastStudied(LocalDateTime.parse(lastStudiedStr));
+                }
                 return note;
             }
         }
@@ -129,6 +136,10 @@ public class NoteDao {
                         Note.keywordsFromCsv(rs.getString("keywords"))
                 );
                 note.setFilePath(rs.getString("file_path"));
+                String lastStudiedStr = rs.getString("last_studied");
+                if (lastStudiedStr != null && !lastStudiedStr.isBlank()) {
+                    note.setLastStudied(LocalDateTime.parse(lastStudiedStr));
+                }
                 return note;
             }
         }
@@ -167,6 +178,10 @@ public class NoteDao {
                         Note.keywordsFromCsv(rs.getString("keywords"))
                 );
                 note.setFilePath(rs.getString("file_path"));
+                String lastStudiedStr = rs.getString("last_studied");
+                if (lastStudiedStr != null && !lastStudiedStr.isBlank()) {
+                    note.setLastStudied(LocalDateTime.parse(lastStudiedStr));
+                }
                 notes.add(note);
             }
         }

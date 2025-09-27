@@ -1,98 +1,86 @@
 package org.mindgraph.controller;
 
+import org.mindgraph.datastructure.LinkedList;
 import org.mindgraph.model.Note;
 
 import java.io.*;
-import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * StudyPlanController manages a study plan using a custom LinkedList.
+ * Supports adding, inserting, removing notes, clearing the plan,
+ * cursor-based navigation, and saving/loading from disk.
+ */
 public class StudyPlanController implements Serializable {
 
-    private static class Node implements Serializable {
-        Note note;
-        Node next;
-
-        Node(Note note) {
-            this.note = note;
-        }
-    }
-
-    private Node head = null;
+    private final LinkedList<Note> plan = new LinkedList<>();
     private final String FILE_PATH = System.getProperty("user.home") + "/mindgraph_studyplan.dat";
 
     public StudyPlanController() {
         loadPlan();
     }
 
-    // Add note at the end, avoid duplicates
+    /** Add note at the end, skip duplicates */
     public void addNote(Note note) {
         if (note == null) return;
+        if (contains(note)) return;
 
-        if (contains(note)) return; // skip duplicates
-
-        Node newNode = new Node(note);
-        if (head == null) {
-            head = newNode;
-        } else {
-            Node current = head;
-            while (current.next != null) current = current.next;
-            current.next = newNode;
-        }
+        plan.addLast(note);
         savePlan();
     }
 
-    // Remove note by ID or title
+    /** Insert note at specific index, skips duplicates */
+    public void insertNoteAt(Note note, int index) {
+        if (note == null) return;
+        if (contains(note)) return;
+
+        plan.insertAt(note, index);
+        savePlan();
+    }
+
+    /** Remove note by object (ID or title) */
     public void removeNote(Note note) {
-        if (note == null || head == null) return;
+        if (note == null) return;
 
-        if (matches(head.note, note)) {
-            head = head.next;
-            savePlan();
-            return;
-        }
-
-        Node prev = head;
-        Node current = head.next;
-
-        while (current != null) {
-            if (matches(current.note, note)) {
-                prev.next = current.next;
+        LinkedList<Note>.Cursor cursor = plan.cursorFromStart();
+        int index = 0;
+        while (cursor.current() != null) {
+            Note n = cursor.current();
+            if (matches(n, note)) {
+                plan.removeAt(index);
                 savePlan();
                 return;
             }
-            prev = current;
-            current = current.next;
+            cursor.moveNext();
+            index++;
         }
     }
 
-    // Convert linked list to a List<Note>
+    /** Get the entire plan as a List */
     public List<Note> getPlan() {
-        List<Note> list = new ArrayList<>();
-        Node current = head;
-        while (current != null) {
-            list.add(current.note);
-            current = current.next;
-        }
-        return list;
+        return plan.toList();
     }
 
-    // Clear entire plan
+    /** Clear the plan */
     public void clearPlan() {
-        head = null;
+        plan.clear();
         savePlan();
     }
 
-    // Check if a note already exists
+    /** Get a cursor to navigate the study plan */
+    public LinkedList<Note>.Cursor getPlanCursor() {
+        return plan.cursorFromStart();
+    }
+
+    /** Check if note exists in plan */
     private boolean contains(Note note) {
-        Node current = head;
-        while (current != null) {
-            if (matches(current.note, note)) return true;
-            current = current.next;
+        for (Note n : plan) {
+            if (matches(n, note)) return true;
         }
         return false;
     }
 
-    // Check equality by ID (if present) or title
+    /** Match notes by ID (if exists) or title */
     private boolean matches(Note n1, Note n2) {
         if (n1 == null || n2 == null) return false;
         return (n1.getId() != 0 && n1.getId() == n2.getId()) || n1.getTitle().equals(n2.getTitle());
@@ -114,9 +102,9 @@ public class StudyPlanController implements Serializable {
 
         try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(f))) {
             List<Note> loadedList = (List<Note>) ois.readObject();
-            head = null;
+            plan.clear();
             for (Note n : loadedList) {
-                addNote(n); // rebuild linked list
+                plan.addLast(n);
             }
         } catch (Exception e) {
             System.out.println("No previous study plan found or failed to load: " + e.getMessage());
